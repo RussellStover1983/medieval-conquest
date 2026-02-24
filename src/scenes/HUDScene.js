@@ -1,0 +1,291 @@
+import Phaser from 'phaser';
+import { GAME_WIDTH, GAME_HEIGHT } from '../constants.js';
+import { UI_COLORS } from '../utils/ParchmentColors.js';
+import HealthBar from '../ui/HealthBar.js';
+import CurrencyDisplay from '../ui/CurrencyDisplay.js';
+import MiniMap from '../ui/MiniMap.js';
+import TouchControls from '../ui/TouchControls.js';
+import ViewToggleButton from '../ui/ViewToggleButton.js';
+import AttackButton from '../ui/AttackButton.js';
+
+export default class HUDScene extends Phaser.Scene {
+  constructor() {
+    super('HUDScene');
+  }
+
+  init(data) {
+    this.player = data.player;
+    this.cameraController = data.cameraController;
+    this.movementSystem = data.movementSystem;
+    this.territoryManager = data.territoryManager;
+    this.mapData = data.mapData;
+    this.combatSystem = data.combatSystem;
+  }
+
+  create() {
+    // Health bar (top-left)
+    this.healthBar = new HealthBar(this, 16, 16, 150, 20);
+
+    // Currency display (top-left, below health)
+    this.currencyDisplay = new CurrencyDisplay(this, 24, 48);
+
+    // Mini-map (bottom-right)
+    this.miniMap = new MiniMap(this, GAME_WIDTH - 142, GAME_HEIGHT - 142, 128);
+    this.miniMap.renderTerrain(this.mapData.terrain);
+
+    // View toggle button (top-right)
+    this.viewToggle = new ViewToggleButton(this, GAME_WIDTH - 60, 30, () => {
+      this.cameraController.toggleView(this.player);
+      this.updateViewState();
+    });
+
+    // Touch controls (bottom-left) - only visible in explore view
+    this.touchControls = new TouchControls(this, (x, y) => {
+      this.movementSystem.setJoystickInput(x, y);
+    });
+    this.touchControls.setVisible(false);
+
+    // Territory capture notification
+    this.captureText = this.add.text(GAME_WIDTH / 2, GAME_HEIGHT / 2, '', {
+      fontSize: '28px',
+      fontFamily: 'Georgia, serif',
+      color: '#ffd700',
+      fontStyle: 'bold',
+      stroke: '#2c1810',
+      strokeThickness: 4,
+    });
+    this.captureText.setOrigin(0.5);
+    this.captureText.setScrollFactor(0);
+    this.captureText.setDepth(300);
+    this.captureText.setAlpha(0);
+
+    // Territory progress (shown in explore view)
+    this.territoryProgress = this.add.text(GAME_WIDTH / 2, 16, '', {
+      fontSize: '14px',
+      fontFamily: 'Georgia, serif',
+      color: '#f4e4c1',
+      stroke: '#2c1810',
+      strokeThickness: 2,
+    });
+    this.territoryProgress.setOrigin(0.5, 0);
+    this.territoryProgress.setScrollFactor(0);
+    this.territoryProgress.setDepth(100);
+
+    // Class name display
+    this.classLabel = this.add.text(16, GAME_HEIGHT - 20, this.player.className, {
+      fontSize: '12px',
+      fontFamily: 'Georgia, serif',
+      color: '#8b6b4a',
+    });
+    this.classLabel.setOrigin(0, 1);
+    this.classLabel.setScrollFactor(0);
+    this.classLabel.setDepth(100);
+
+    // Attack button (bottom-right, for touch/iPad)
+    this.attackButton = new AttackButton(this, () => {
+      if (this.combatSystem) this.combatSystem.requestAttack();
+    });
+
+    // Village entry prompt (hidden by default)
+    this.villagePrompt = this.add.text(GAME_WIDTH / 2, GAME_HEIGHT - 60, '', {
+      fontSize: '16px',
+      fontFamily: 'Georgia, serif',
+      color: '#ffd700',
+      fontStyle: 'bold',
+      stroke: '#2c1810',
+      strokeThickness: 3,
+    });
+    this.villagePrompt.setOrigin(0.5);
+    this.villagePrompt.setScrollFactor(0);
+    this.villagePrompt.setDepth(150);
+    this.villagePrompt.setVisible(false);
+
+    // Village name banner (shown when inside village)
+    this.villageBanner = this.add.text(GAME_WIDTH / 2, 20, '', {
+      fontSize: '20px',
+      fontFamily: 'Georgia, serif',
+      color: '#f4e4c1',
+      fontStyle: 'bold',
+      stroke: '#2c1810',
+      strokeThickness: 4,
+    });
+    this.villageBanner.setOrigin(0.5, 0);
+    this.villageBanner.setScrollFactor(0);
+    this.villageBanner.setDepth(150);
+    this.villageBanner.setVisible(false);
+
+    // Village mode flag
+    this.inVillageMode = false;
+
+    // Death overlay (hidden by default)
+    this.deathOverlay = this.add.rectangle(GAME_WIDTH / 2, GAME_HEIGHT / 2,
+      GAME_WIDTH, GAME_HEIGHT, 0x000000, 0);
+    this.deathOverlay.setDepth(400);
+    this.deathOverlay.setScrollFactor(0);
+    this.deathText = this.add.text(GAME_WIDTH / 2, GAME_HEIGHT / 2, 'You Died', {
+      fontSize: '36px',
+      fontFamily: 'Georgia, serif',
+      color: '#cc0000',
+      fontStyle: 'bold',
+      stroke: '#000000',
+      strokeThickness: 4,
+    });
+    this.deathText.setOrigin(0.5);
+    this.deathText.setScrollFactor(0);
+    this.deathText.setDepth(401);
+    this.deathText.setAlpha(0);
+
+    // Listen for game events
+    const gameScene = this.scene.get('GameScene');
+
+    gameScene.events.on('resourceCollected', (type, value) => {
+      this.showCollectFeedback(type, value);
+    });
+
+    gameScene.events.on('territoryCaptured', (region) => {
+      this.showCaptureNotification(region);
+    });
+
+    gameScene.events.on('playerMoved', (tilePos) => {
+      this.updateTerritoryProgress(tilePos);
+    });
+
+    gameScene.events.on('nearVillage', (village) => {
+      this.villagePrompt.setText(`Press E to Enter ${village.name}`);
+      this.villagePrompt.setVisible(true);
+    });
+
+    gameScene.events.on('leftVillage', () => {
+      this.villagePrompt.setVisible(false);
+    });
+
+    // Village mode events (from VillageScene via HUDScene events)
+    this.events.on('enterVillage', (villageName) => {
+      this.inVillageMode = true;
+      this.miniMap.setVisible(false);
+      this.attackButton.setVisible(false);
+      this.villagePrompt.setVisible(false);
+      this.touchControls.setVisible(false);
+      this.territoryProgress.setVisible(false);
+      this.villageBanner.setText(villageName);
+      this.villageBanner.setVisible(true);
+    });
+
+    this.events.on('exitVillage', () => {
+      this.inVillageMode = false;
+      this.villageBanner.setVisible(false);
+      this.updateViewState();
+    });
+
+    gameScene.events.on('playerDied', () => {
+      this.showDeathOverlay();
+    });
+
+    gameScene.events.on('playerRespawned', () => {
+      this.hideDeathOverlay();
+    });
+
+    // Initial view state
+    this.updateViewState();
+  }
+
+  updateViewState() {
+    const isMap = this.cameraController.isMapView;
+    this.touchControls.setVisible(!isMap);
+    this.miniMap.setVisible(!isMap);
+    this.healthBar.setVisible(!isMap);
+    this.currencyDisplay.setVisible(!isMap);
+    this.territoryProgress.setVisible(!isMap);
+    this.attackButton.setVisible(!isMap);
+  }
+
+  showDeathOverlay() {
+    this.deathText.setAlpha(1);
+    this.tweens.add({
+      targets: this.deathOverlay,
+      fillAlpha: 0.6,
+      duration: 600,
+    });
+  }
+
+  hideDeathOverlay() {
+    this.tweens.add({
+      targets: [this.deathOverlay, this.deathText],
+      alpha: 0,
+      duration: 500,
+    });
+  }
+
+  showCollectFeedback(type, value) {
+    const label = `+${value} ${type}`;
+    const feedbackText = this.add.text(GAME_WIDTH / 2, GAME_HEIGHT / 2 - 40, label, {
+      fontSize: '20px',
+      fontFamily: 'Georgia, serif',
+      color: '#ffd700',
+      stroke: '#2c1810',
+      strokeThickness: 3,
+    });
+    feedbackText.setOrigin(0.5);
+    feedbackText.setScrollFactor(0);
+    feedbackText.setDepth(300);
+
+    this.tweens.add({
+      targets: feedbackText,
+      y: GAME_HEIGHT / 2 - 100,
+      alpha: 0,
+      duration: 1000,
+      ease: 'Power2',
+      onComplete: () => feedbackText.destroy(),
+    });
+  }
+
+  showCaptureNotification(region) {
+    this.captureText.setText(`Territory Captured!\n${region.name}`);
+    this.captureText.setAlpha(1);
+
+    this.tweens.add({
+      targets: this.captureText,
+      alpha: 0,
+      duration: 3000,
+      delay: 1500,
+      ease: 'Power2',
+    });
+  }
+
+  updateTerritoryProgress(tilePos) {
+    const region = this.territoryManager.getRegionAt(tilePos.x, tilePos.y);
+    if (region) {
+      const progress = this.territoryManager.getRegionProgress(region);
+      const captured = this.territoryManager.capturedRegions.has(region.id);
+      if (captured) {
+        this.territoryProgress.setText(`${region.name} - Captured!`);
+      } else {
+        this.territoryProgress.setText(`${region.name} - ${Math.floor(progress * 100)}% explored`);
+      }
+    }
+  }
+
+  update() {
+    // Always update health and currency (visible in village too)
+    this.healthBar.update(this.player.health, this.player.maxHealth);
+    this.currencyDisplay.update(this.player.inventory);
+
+    // Skip overworld-specific updates during village mode
+    if (this.inVillageMode) return;
+
+    const pos = this.player.getPosition();
+    this.miniMap.updatePlayerPosition(pos.x, pos.y);
+
+    // Sync view state during transitions
+    if (this.cameraController.isTransitioning) {
+      return;
+    }
+    const isMap = this.cameraController.isMapView;
+    this.touchControls.setVisible(!isMap);
+    this.miniMap.setVisible(!isMap);
+    this.healthBar.setVisible(!isMap);
+    this.currencyDisplay.setVisible(!isMap);
+    this.territoryProgress.setVisible(!isMap);
+    this.attackButton.setVisible(!isMap);
+  }
+}
