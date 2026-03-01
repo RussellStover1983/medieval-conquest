@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { TILE_SIZE, WORLD_WIDTH, WORLD_HEIGHT, TERRAIN } from '../constants.js';
+import { TILE_SIZE, WORLD_WIDTH, WORLD_HEIGHT, TERRAIN, ITEMS } from '../constants.js';
 import MapGenerator from '../map/MapGenerator.js';
 import MapRenderer from '../map/MapRenderer.js';
 import TerritoryManager from '../map/TerritoryManager.js';
@@ -97,6 +97,14 @@ export default class GameScene extends Phaser.Scene {
       this.lastWeatherTerrain = -1;
 
 
+      // Input pause flag (set by HUD when inventory panel is open)
+      this.inputPaused = false;
+      const hudScene = this.scene.get('HUDScene');
+      this.events.on('pauseInput', (paused) => {
+        this.inputPaused = paused;
+        if (paused) this.player.stop();
+      });
+
       // Village entry
       this.eKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.E);
       this.eKeyJustPressed = false;
@@ -119,15 +127,17 @@ export default class GameScene extends Phaser.Scene {
     if (!this.cameraController.isMapView && !this.cameraController.isTransitioning) {
       const dt = this.game.loop.delta / 1000;
 
-      this.movementSystem.update(this.mapData.terrain);
-      this.resourceSystem.update();
-      this.player.update(dt);
+      // Skip movement and combat when input is paused (inventory open)
+      if (!this.inputPaused) {
+        this.movementSystem.update(this.mapData.terrain);
+        this.resourceSystem.update();
+        this.player.update(dt);
 
-      // Combat
-      const pos = this.player.getPosition();
-      this.enemySpawner.update(dt, pos.x, pos.y);
-      this.combatSystem.update(dt);
-
+        // Combat
+        const pos = this.player.getPosition();
+        this.enemySpawner.update(dt, pos.x, pos.y);
+        this.combatSystem.update(dt);
+      }
 
       // Track territory discovery
       const tilePos = this.player.getTilePosition();
@@ -135,8 +145,11 @@ export default class GameScene extends Phaser.Scene {
         this.lastTileX = tilePos.x;
         this.lastTileY = tilePos.y;
 
-        // Discover surrounding tiles (visibility radius based on class)
-        const radius = this.player.className === 'Scout' ? 5 : 3;
+        // Discover surrounding tiles (visibility radius based on class + torch bonus)
+        let radius = this.player.className === 'Scout' ? 5 : 3;
+        if (this.player.activeTool === 'torch') {
+          radius += ITEMS.torch.visibilityBonus;
+        }
         for (let dy = -radius; dy <= radius; dy++) {
           for (let dx = -radius; dx <= radius; dx++) {
             const result = this.territoryManager.discoverTile(tilePos.x + dx, tilePos.y + dy);

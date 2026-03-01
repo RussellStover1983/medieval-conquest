@@ -1,4 +1,4 @@
-import { TILE_SIZE } from '../constants.js';
+import { TILE_SIZE, ITEMS } from '../constants.js';
 
 export default class ResourceSystem {
   constructor(scene, player, mapRenderer) {
@@ -23,11 +23,15 @@ export default class ResourceSystem {
 
       if (dist < this.collectRadius) {
         res.data.collected = true;
-        this.player.collectResource(res.data.type, res.data.value);
+        let value = res.data.value;
+        if (this.player.activeTool === 'pickaxe') {
+          value = Math.round(value * ITEMS.pickaxe.resourceMultiplier);
+        }
+        this.player.collectResource(res.data.type, value);
         this.mapRenderer.removeResource(res);
 
         if (this.onCollect) {
-          this.onCollect(res.data.type, res.data.value);
+          this.onCollect(res.data.type, value);
         }
       }
     }

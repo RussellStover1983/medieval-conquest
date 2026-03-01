@@ -1,7 +1,3 @@
-import { WEAPONS } from '../constants.js';
-
-const SHOP_WEAPONS = Object.entries(WEAPONS).filter(([key]) => key !== 'none');
-
 const NPC_CONFIGS = {
   innkeeper: {
     name: 'Innkeeper',
@@ -24,7 +20,6 @@ const NPC_CONFIGS = {
     tint: 0x8888cc,
     dialog: [
       'Welcome to the forge!',
-      'Browse my weapons with E.',
     ],
   },
 };
@@ -34,8 +29,6 @@ export default class VillageNPC {
     this.scene = scene;
     this.type = type;
     this.config = NPC_CONFIGS[type];
-
-    this.shopIndex = 0;
 
     this.sprite = scene.add.sprite(x, y, 'detail_npc');
     this.sprite.setTint(this.config.tint);
@@ -67,45 +60,24 @@ export default class VillageNPC {
       let totalGold = 0;
       const rates = { silver: 2, emerald: 5, ruby: 10 };
       for (const [resource, rate] of Object.entries(rates)) {
-        const amount = player.inventory[resource] || 0;
+        const amount = player.currency[resource] || 0;
         if (amount > 0) {
           totalGold += amount * rate;
-          player.inventory[resource] = 0;
+          player.currency[resource] = 0;
         }
       }
       if (totalGold > 0) {
-        player.inventory.gold += totalGold;
+        player.currency.gold += totalGold;
         return `Sold gems for ${totalGold} gold!`;
       }
       return 'You have nothing to sell.';
     }
 
     if (this.type === 'blacksmith') {
-      const [key, weapon] = SHOP_WEAPONS[this.shopIndex];
-      this.shopIndex = (this.shopIndex + 1) % SHOP_WEAPONS.length;
-      const equipped = player.weapon === key ? ' [EQUIPPED]' : '';
-      return `${weapon.name} - ${weapon.cost} gold${equipped}\n${weapon.description}\nPress F to buy`;
+      return { action: 'openShop' };
     }
 
     return '';
-  }
-
-  purchase(player) {
-    if (this.type !== 'blacksmith') return '';
-
-    // shopIndex was advanced by interact(), so the displayed weapon is one behind
-    const idx = (this.shopIndex - 1 + SHOP_WEAPONS.length) % SHOP_WEAPONS.length;
-    const [key, weapon] = SHOP_WEAPONS[idx];
-
-    if (player.weapon === key) {
-      return `Already equipped ${weapon.name}!`;
-    }
-    if (player.inventory.gold < weapon.cost) {
-      return `Not enough gold! Need ${weapon.cost}.`;
-    }
-    player.inventory.gold -= weapon.cost;
-    player.equipWeapon(key);
-    return `Bought ${weapon.name}!`;
   }
 
   isNear(x, y, range = 50) {

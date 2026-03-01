@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import VillageNPC from '../entities/VillageNPC.js';
+import ShopPanel from '../ui/ShopPanel.js';
 
 const V_TILE = 32;
 const V_WIDTH = 20;
@@ -80,8 +81,11 @@ export default class VillageScene extends Phaser.Scene {
     });
     this.eKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.E);
     this.eKeyJustPressed = false;
-    this.fKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.F);
-    this.fKeyJustPressed = false;
+    this.escKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.ESC);
+    this.escKeyJustPressed = false;
+
+    // Shop panel
+    this.shopPanel = new ShopPanel(this, this.playerData);
 
     // Dialog UI
     this.dialogBg = this.add.rectangle(V_WORLD_W / 2, V_WORLD_H - 40, 280, 60, 0x2c1810, 0.9);
@@ -170,6 +174,20 @@ export default class VillageScene extends Phaser.Scene {
   }
 
   update() {
+    // Escape key: close shop panel
+    const escDown = this.escKey.isDown;
+    if (escDown && !this.escKeyJustPressed) {
+      this.escKeyJustPressed = true;
+      if (this.shopPanel.isOpen) {
+        this.shopPanel.close();
+      }
+    } else if (!escDown) {
+      this.escKeyJustPressed = false;
+    }
+
+    // Skip movement when shop is open
+    if (this.shopPanel.isOpen) return;
+
     const speed = 120;
     let vx = 0, vy = 0;
 
@@ -223,15 +241,6 @@ export default class VillageScene extends Phaser.Scene {
       this.eKeyJustPressed = false;
     }
 
-    // F key handling (buy from blacksmith)
-    const fDown = this.fKey.isDown;
-    if (fDown && !this.fKeyJustPressed) {
-      this.fKeyJustPressed = true;
-      this._handlePurchase();
-    } else if (!fDown) {
-      this.fKeyJustPressed = false;
-    }
-
     // Proximity prompts
     this._updatePrompts();
   }
@@ -251,22 +260,16 @@ export default class VillageScene extends Phaser.Scene {
     // Check NPCs
     for (const npc of this.npcs) {
       if (npc.isNear(px, py, 50)) {
-        const dialog = npc.getDialog();
         const result = npc.interact(this.playerData);
+
+        // Blacksmith returns an action object
+        if (result && typeof result === 'object' && result.action === 'openShop') {
+          this.shopPanel.open();
+          return;
+        }
+
+        const dialog = npc.getDialog();
         this._showDialog(dialog.join('\n') + '\n' + result);
-        return;
-      }
-    }
-  }
-
-  _handlePurchase() {
-    const px = this.playerSprite.x;
-    const py = this.playerSprite.y;
-
-    for (const npc of this.npcs) {
-      if (npc.type === 'blacksmith' && npc.isNear(px, py, 50)) {
-        const result = npc.purchase(this.playerData);
-        this._showDialog(result);
         return;
       }
     }
@@ -291,7 +294,7 @@ export default class VillageScene extends Phaser.Scene {
         if (npc.isNear(px, py, 50)) {
           nearSomething = true;
           if (npc.type === 'blacksmith') {
-            this.promptText.setText('E: Browse | F: Buy');
+            this.promptText.setText('Press E to Open Shop');
           } else {
             this.promptText.setText('Press E to Talk');
           }
@@ -311,6 +314,9 @@ export default class VillageScene extends Phaser.Scene {
   }
 
   _exitVillage() {
+    // Destroy shop panel before leaving
+    this.shopPanel.destroy();
+
     this.cameras.main.fadeOut(400, 44, 24, 16);
     this.cameras.main.once('camerafadeoutcomplete', () => {
       // Notify HUD

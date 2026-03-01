@@ -7,6 +7,8 @@ import MiniMap from '../ui/MiniMap.js';
 import TouchControls from '../ui/TouchControls.js';
 import ViewToggleButton from '../ui/ViewToggleButton.js';
 import AttackButton from '../ui/AttackButton.js';
+import Hotbar from '../ui/Hotbar.js';
+import InventoryPanel from '../ui/InventoryPanel.js';
 
 export default class HUDScene extends Phaser.Scene {
   constructor() {
@@ -71,8 +73,8 @@ export default class HUDScene extends Phaser.Scene {
     this.territoryProgress.setScrollFactor(0);
     this.territoryProgress.setDepth(100);
 
-    // Class name display
-    this.classLabel = this.add.text(16, GAME_HEIGHT - 34, this.player.className, {
+    // Class name display (moved above hotbar)
+    this.classLabel = this.add.text(16, GAME_HEIGHT - 70, this.player.className, {
       fontSize: '12px',
       fontFamily: 'Georgia, serif',
       color: '#8b6b4a',
@@ -81,8 +83,8 @@ export default class HUDScene extends Phaser.Scene {
     this.classLabel.setScrollFactor(0);
     this.classLabel.setDepth(100);
 
-    // Weapon label (below class name)
-    this.weaponLabel = this.add.text(16, GAME_HEIGHT - 18, 'Fists', {
+    // Weapon label (moved above hotbar)
+    this.weaponLabel = this.add.text(16, GAME_HEIGHT - 56, 'Fists', {
       fontSize: '12px',
       fontFamily: 'Georgia, serif',
       color: '#a08060',
@@ -96,8 +98,34 @@ export default class HUDScene extends Phaser.Scene {
       if (this.combatSystem) this.combatSystem.requestAttack();
     });
 
+    // Hotbar (bottom center, always visible)
+    this.hotbar = new Hotbar(this, this.player);
+
+    // Inventory panel (Tab to toggle)
+    this.inventoryPanel = new InventoryPanel(this, this.player);
+
+    // Wire up inventory onChange to refresh hotbar
+    this.player.bag.onChange = () => {
+      this.hotbar.refresh();
+      if (this.inventoryPanel.isOpen) this.inventoryPanel.refresh();
+    };
+
+    // Tab key to toggle inventory (capture to prevent browser focus switch)
+    this.input.keyboard.addCapture('TAB');
+    this.tabKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.TAB);
+    this.tabJustPressed = false;
+
+    // Number keys 1-5 for hotbar
+    this.numKeys = [];
+    for (let i = 0; i < 5; i++) {
+      this.numKeys.push(this.input.keyboard.addKey(
+        Phaser.Input.Keyboard.KeyCodes.ONE + i
+      ));
+    }
+    this.numKeysJustPressed = [false, false, false, false, false];
+
     // Village entry prompt (hidden by default)
-    this.villagePrompt = this.add.text(GAME_WIDTH / 2, GAME_HEIGHT - 60, '', {
+    this.villagePrompt = this.add.text(GAME_WIDTH / 2, GAME_HEIGHT - 80, '', {
       fontSize: '16px',
       fontFamily: 'Georgia, serif',
       color: '#ffd700',
@@ -207,6 +235,7 @@ export default class HUDScene extends Phaser.Scene {
     this.currencyDisplay.setVisible(!isMap);
     this.territoryProgress.setVisible(!isMap);
     this.attackButton.setVisible(!isMap);
+    this.hotbar.setVisible(!isMap);
   }
 
   showDeathOverlay() {
@@ -278,11 +307,41 @@ export default class HUDScene extends Phaser.Scene {
   update() {
     // Always update health and currency (visible in village too)
     this.healthBar.update(this.player.health, this.player.maxHealth);
-    this.currencyDisplay.update(this.player.inventory);
+    this.currencyDisplay.update(this.player.currency);
 
     // Update weapon display
     const wpn = WEAPONS[this.player.weapon] || WEAPONS.none;
     this.weaponLabel.setText(wpn.name);
+
+    // Tab key: toggle inventory
+    const tabDown = this.tabKey.isDown;
+    if (tabDown && !this.tabJustPressed) {
+      this.tabJustPressed = true;
+      this.inventoryPanel.toggle();
+      // Emit pause/resume to GameScene
+      const gameScene = this.scene.get('GameScene');
+      gameScene.events.emit('pauseInput', this.inventoryPanel.isOpen);
+    } else if (!tabDown) {
+      this.tabJustPressed = false;
+    }
+
+    // Number keys 1-5: select hotbar slot
+    for (let i = 0; i < 5; i++) {
+      const down = this.numKeys[i].isDown;
+      if (down && !this.numKeysJustPressed[i]) {
+        this.numKeysJustPressed[i] = true;
+        // If inventory is open and a slot is selected, assign to this hotbar slot
+        if (this.inventoryPanel.isOpen && this.inventoryPanel.selectedSlot >= 0) {
+          this.inventoryPanel.assignToHotbarSlot(i);
+        } else {
+          this.player.equipFromHotbar(i);
+          this.hotbar.setActiveSlot(i);
+        }
+        this.hotbar.refresh();
+      } else if (!down) {
+        this.numKeysJustPressed[i] = false;
+      }
+    }
 
     // Skip overworld-specific updates during village mode
     if (this.inVillageMode) return;
@@ -301,5 +360,6 @@ export default class HUDScene extends Phaser.Scene {
     this.currencyDisplay.setVisible(!isMap);
     this.territoryProgress.setVisible(!isMap);
     this.attackButton.setVisible(!isMap);
+    this.hotbar.setVisible(!isMap);
   }
 }

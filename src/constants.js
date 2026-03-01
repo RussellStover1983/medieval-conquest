@@ -157,3 +157,83 @@ export const WEAPONS = {
     description: 'Long reach, fast',
   },
 };
+
+export const ITEM_TYPES = {
+  WEAPON: 'weapon',
+  CONSUMABLE: 'consumable',
+  TOOL: 'tool',
+};
+
+export const INVENTORY_SLOTS = 30;
+export const HOTBAR_SLOTS = 5;
+
+export const ITEMS = {
+  sword: {
+    id: 'sword',
+    name: 'Sword',
+    type: ITEM_TYPES.WEAPON,
+    cost: 25,
+    weaponKey: 'sword',
+    iconColor: 0xb0c4de,
+    description: '1.5x damage',
+    stackable: false,
+    maxStack: 1,
+  },
+  axe: {
+    id: 'axe',
+    name: 'Axe',
+    type: ITEM_TYPES.WEAPON,
+    cost: 40,
+    weaponKey: 'axe',
+    iconColor: 0xcd853f,
+    description: '2x damage, slower',
+    stackable: false,
+    maxStack: 1,
+  },
+  spear: {
+    id: 'spear',
+    name: 'Spear',
+    type: ITEM_TYPES.WEAPON,
+    cost: 30,
+    weaponKey: 'spear',
+    iconColor: 0x228b22,
+    description: 'Long reach, fast',
+    stackable: false,
+    maxStack: 1,
+  },
+  health_potion: {
+    id: 'health_potion',
+    name: 'Health Potion',
+    type: ITEM_TYPES.CONSUMABLE,
+    cost: 15,
+    healAmount: 40,
+    iconColor: 0xcc3333,
+    description: 'Restores 40 HP',
+    stackable: true,
+    maxStack: 10,
+  },
+  pickaxe: {
+    id: 'pickaxe',
+    name: 'Pickaxe',
+    type: ITEM_TYPES.TOOL,
+    cost: 20,
+    resourceMultiplier: 2.0,
+    iconColor: 0x888888,
+    description: '2x resource value',
+    stackable: false,
+    maxStack: 1,
+  },
+  torch: {
+    id: 'torch',
+    name: 'Torch',
+    type: ITEM_TYPES.TOOL,
+    cost: 10,
+    visibilityBonus: 3,
+    iconColor: 0xff8800,
+    description: '+3 discovery radius',
+    stackable: false,
+    maxStack: 1,
+  },
+};
+
+export const SHOP_ITEMS = ['sword', 'axe', 'spear', 'health_potion', 'pickaxe', 'torch'];

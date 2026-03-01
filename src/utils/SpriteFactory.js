@@ -12,6 +12,7 @@ export default class SpriteFactory {
     SpriteFactory.generateTerrainTextures(scene);
     SpriteFactory.generateParticleTextures(scene);
     SpriteFactory.generateVillageTextures(scene);
+    SpriteFactory._generateItemIcons(scene);
   }
 
   // ── Terrain tile textures (32x32 with noise variation) ─────────────────
@@ -980,6 +981,103 @@ export default class SpriteFactory {
       g.fillRect(cx - 3, cy + 6, 2, 4);
       g.fillRect(cx + 1, cy + 6, 2, 4);
       g.generateTexture('detail_npc', s, s);
+      g.destroy();
+    }
+  }
+
+  // ── Item icon textures (24x24) ──────────────────────────────────────────
+
+  static _generateItemIcons(scene) {
+    const s = 24;
+
+    // Sword icon
+    {
+      const g = scene.add.graphics();
+      g.fillStyle(0xb0c4de, 1);
+      g.fillRect(11, 2, 2, 16);  // blade
+      g.fillStyle(0xddeeff, 0.6);
+      g.fillRect(11, 2, 1, 14);  // highlight
+      g.fillStyle(0x8b7355, 1);
+      g.fillRect(8, 17, 8, 2);   // crossguard
+      g.fillStyle(0x6b4226, 1);
+      g.fillRect(10, 19, 4, 4);  // grip
+      g.generateTexture('item_icon_sword', s, s);
+      g.destroy();
+    }
+
+    // Axe icon
+    {
+      const g = scene.add.graphics();
+      g.fillStyle(0x6b4226, 1);
+      g.fillRect(11, 6, 2, 16);  // handle
+      g.fillStyle(0xcd853f, 1);
+      g.fillRect(6, 2, 8, 8);    // axe head
+      g.fillStyle(0xe8a860, 0.5);
+      g.fillRect(7, 3, 3, 5);    // highlight
+      g.fillStyle(0xaaaaaa, 1);
+      g.fillRect(13, 3, 2, 6);   // blade edge
+      g.generateTexture('item_icon_axe', s, s);
+      g.destroy();
+    }
+
+    // Spear icon
+    {
+      const g = scene.add.graphics();
+      g.fillStyle(0x6b4226, 1);
+      g.fillRect(11, 8, 2, 14);  // shaft
+      g.fillStyle(0x228b22, 1);
+      g.fillRect(10, 2, 4, 8);   // spearhead
+      g.fillStyle(0x44bb44, 0.5);
+      g.fillRect(10, 3, 2, 5);   // highlight
+      g.generateTexture('item_icon_spear', s, s);
+      g.destroy();
+    }
+
+    // Health potion icon
+    {
+      const g = scene.add.graphics();
+      g.fillStyle(0x886666, 1);
+      g.fillRect(9, 6, 6, 2);    // bottle neck
+      g.fillStyle(0xcc3333, 1);
+      g.fillRect(7, 8, 10, 12);  // bottle body
+      g.fillStyle(0xff5555, 0.5);
+      g.fillRect(8, 9, 4, 8);    // liquid highlight
+      g.fillStyle(0xffffff, 0.4);
+      g.fillRect(10, 10, 2, 2);  // glass shine
+      g.fillStyle(0x6b4226, 1);
+      g.fillRect(8, 5, 8, 2);    // cork
+      g.generateTexture('item_icon_potion', s, s);
+      g.destroy();
+    }
+
+    // Pickaxe icon
+    {
+      const g = scene.add.graphics();
+      g.fillStyle(0x6b4226, 1);
+      g.fillRect(6, 10, 14, 2);  // handle (diagonal approx)
+      g.fillRect(8, 12, 2, 8);   // handle vertical
+      g.fillStyle(0x888888, 1);
+      g.fillRect(4, 4, 10, 4);   // pick head
+      g.fillRect(3, 6, 3, 4);    // left point
+      g.fillRect(12, 6, 3, 4);   // right point
+      g.fillStyle(0xaaaaaa, 0.5);
+      g.fillRect(5, 4, 4, 2);    // highlight
+      g.generateTexture('item_icon_pickaxe', s, s);
+      g.destroy();
+    }
+
+    // Torch icon
+    {
+      const g = scene.add.graphics();
+      g.fillStyle(0x6b4226, 1);
+      g.fillRect(10, 10, 4, 12); // handle
+      g.fillStyle(0xff8800, 1);
+      g.fillRect(9, 4, 6, 8);    // flame base
+      g.fillStyle(0xffcc00, 1);
+      g.fillRect(10, 2, 4, 6);   // flame core
+      g.fillStyle(0xffee66, 0.6);
+      g.fillRect(11, 1, 2, 4);   // flame tip
+      g.generateTexture('item_icon_torch', s, s);
       g.destroy();
     }
   }

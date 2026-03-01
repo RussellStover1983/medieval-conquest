@@ -1,7 +1,8 @@
-import { TILE_SIZE, PLAYER_BASE_SPEED, COMBAT, WEAPONS } from '../constants.js';
+import { TILE_SIZE, PLAYER_BASE_SPEED, COMBAT, WEAPONS, ITEMS, ITEM_TYPES } from '../constants.js';
 import { CHARACTER_CLASSES } from './CharacterClasses.js';
 import { getTerrainConfig } from '../map/TerrainTypes.js';
 import { worldToTile } from '../utils/MathHelpers.js';
+import Inventory from '../systems/Inventory.js';
 
 export default class Player {
   constructor(scene, x, y, className) {
@@ -23,13 +24,15 @@ export default class Player {
     // Stats
     this.maxHealth = 100;
     this.health = this.maxHealth;
-    this.inventory = {
+    this.currency = {
       gold: 0,
       silver: 0,
       emerald: 0,
       ruby: 0,
     };
+    this.bag = new Inventory();
     this.weapon = 'none';
+    this.activeTool = null;
 
     // Movement
     this.baseSpeed = PLAYER_BASE_SPEED;
@@ -182,8 +185,42 @@ export default class Player {
   }
 
   collectResource(type, value) {
-    if (this.inventory[type] !== undefined) {
-      this.inventory[type] += value;
+    if (this.currency[type] !== undefined) {
+      this.currency[type] += value;
+    }
+  }
+
+  equipFromHotbar(hotbarIndex) {
+    this.bag.activeHotbarIndex = hotbarIndex;
+    const item = this.bag.getActiveItem();
+
+    if (!item) {
+      // Empty slot — unequip weapon and tool
+      this.equipWeapon('none');
+      this.activeTool = null;
+      return;
+    }
+
+    if (item.type === ITEM_TYPES.WEAPON) {
+      this.equipWeapon(item.weaponKey);
+      this.activeTool = null;
+    } else if (item.type === ITEM_TYPES.CONSUMABLE) {
+      this.useConsumable(item);
+    } else if (item.type === ITEM_TYPES.TOOL) {
+      // Toggle tool — deactivate if already active
+      if (this.activeTool === item.id) {
+        this.activeTool = null;
+      } else {
+        this.activeTool = item.id;
+      }
+      this.equipWeapon('none');
+    }
+  }
+
+  useConsumable(item) {
+    if (item.id === 'health_potion' && this.health < this.maxHealth) {
+      this.heal(item.healAmount);
+      this.bag.removeItem(item.id, 1);
     }
   }
 
