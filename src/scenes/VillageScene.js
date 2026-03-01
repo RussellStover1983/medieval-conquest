@@ -80,6 +80,8 @@ export default class VillageScene extends Phaser.Scene {
     });
     this.eKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.E);
     this.eKeyJustPressed = false;
+    this.fKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.F);
+    this.fKeyJustPressed = false;
 
     // Dialog UI
     this.dialogBg = this.add.rectangle(V_WORLD_W / 2, V_WORLD_H - 40, 280, 60, 0x2c1810, 0.9);
@@ -221,6 +223,15 @@ export default class VillageScene extends Phaser.Scene {
       this.eKeyJustPressed = false;
     }
 
+    // F key handling (buy from blacksmith)
+    const fDown = this.fKey.isDown;
+    if (fDown && !this.fKeyJustPressed) {
+      this.fKeyJustPressed = true;
+      this._handlePurchase();
+    } else if (!fDown) {
+      this.fKeyJustPressed = false;
+    }
+
     // Proximity prompts
     this._updatePrompts();
   }
@@ -248,6 +259,19 @@ export default class VillageScene extends Phaser.Scene {
     }
   }
 
+  _handlePurchase() {
+    const px = this.playerSprite.x;
+    const py = this.playerSprite.y;
+
+    for (const npc of this.npcs) {
+      if (npc.type === 'blacksmith' && npc.isNear(px, py, 50)) {
+        const result = npc.purchase(this.playerData);
+        this._showDialog(result);
+        return;
+      }
+    }
+  }
+
   _updatePrompts() {
     const px = this.playerSprite.x;
     const py = this.playerSprite.y;
@@ -266,7 +290,11 @@ export default class VillageScene extends Phaser.Scene {
       for (const npc of this.npcs) {
         if (npc.isNear(px, py, 50)) {
           nearSomething = true;
-          this.promptText.setText(`Press E to Talk`);
+          if (npc.type === 'blacksmith') {
+            this.promptText.setText('E: Browse | F: Buy');
+          } else {
+            this.promptText.setText('Press E to Talk');
+          }
           break;
         }
       }

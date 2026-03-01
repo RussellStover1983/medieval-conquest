@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { COMBAT, TILE_SIZE } from '../constants.js';
+import { COMBAT, TILE_SIZE, WEAPONS } from '../constants.js';
 import { distance, tileToWorld } from '../utils/MathHelpers.js';
 
 export default class CombatSystem {
@@ -36,7 +36,8 @@ export default class CombatSystem {
       this.performPlayerAttack();
       // Speed stat modifies cooldown: faster class = shorter cooldown
       const speedMod = 1.4 - (this.player.classData.speed - 3) * (0.6 / 6);
-      this.attackCooldown = COMBAT.ATTACK_COOLDOWN * speedMod;
+      const weapon = this.player.getWeaponData();
+      this.attackCooldown = COMBAT.ATTACK_COOLDOWN * speedMod * weapon.speedMult;
     }
     this.attackRequested = false;
 
@@ -60,14 +61,16 @@ export default class CombatSystem {
     // Play attack animation
     this.player.playAttackAnim();
 
-    // Calculate hitbox position based on facing direction
+    // Calculate hitbox position based on facing direction + weapon reach
     const px = this.player.sprite.x;
     const py = this.player.sprite.y;
+    const weaponData = this.player.getWeaponData();
+    const reach = weaponData.reach;
     const offsets = {
-      up:    { x: 0, y: -COMBAT.ATTACK_DEPTH / 2 - 12 },
-      down:  { x: 0, y: COMBAT.ATTACK_DEPTH / 2 + 12 },
-      left:  { x: -COMBAT.ATTACK_DEPTH / 2 - 12, y: 0 },
-      right: { x: COMBAT.ATTACK_DEPTH / 2 + 12, y: 0 },
+      up:    { x: 0, y: -COMBAT.ATTACK_DEPTH / 2 - 12 - reach },
+      down:  { x: 0, y: COMBAT.ATTACK_DEPTH / 2 + 12 + reach },
+      left:  { x: -COMBAT.ATTACK_DEPTH / 2 - 12 - reach, y: 0 },
+      right: { x: COMBAT.ATTACK_DEPTH / 2 + 12 + reach, y: 0 },
     };
     const off = offsets[this.player.facing];
     const hitX = px + off.x;
@@ -78,7 +81,7 @@ export default class CombatSystem {
     const flashW = isHorizontal ? COMBAT.ATTACK_DEPTH : COMBAT.ATTACK_WIDTH;
     const flashH = isHorizontal ? COMBAT.ATTACK_WIDTH : COMBAT.ATTACK_DEPTH;
 
-    const trailColors = [0xffffff, 0xaaddff, 0x6699cc];
+    const trailColors = weaponData.trailColors;
     const trailAlphas = [0.6, 0.4, 0.25];
 
     for (let i = 0; i < 3; i++) {
@@ -106,7 +109,7 @@ export default class CombatSystem {
     // Check hits against enemies
     const enemies = this.spawner.getActiveEnemies();
     const strength = this.player.classData.strength;
-    const baseDmg = strength * (1 + Math.random() * 0.3);
+    const baseDmg = strength * (1 + Math.random() * 0.3) * weaponData.damageMult;
 
     let hitAny = false;
     for (const enemy of enemies) {

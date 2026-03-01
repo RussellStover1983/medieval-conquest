@@ -118,3 +118,42 @@ export const ENEMY_TYPES = {
     drop: { type: 'gold', min: 1, max: 3 },
   },
 };
+
+export const WEAPONS = {
+  none: {
+    name: 'Fists',
+    damageMult: 1.0,
+    speedMult: 1.0,
+    reach: 0,
+    cost: 0,
+    trailColors: [0xffffff, 0xaaddff, 0x6699cc],
+    description: 'Bare hands',
+  },
+  sword: {
+    name: 'Sword',
+    damageMult: 1.5,
+    speedMult: 1.0,
+    reach: 4,
+    cost: 25,
+    trailColors: [0xffffff, 0xb0c4de, 0x4682b4],
+    description: '1.5x damage',
+  },
+  axe: {
+    name: 'Axe',
+    damageMult: 2.0,
+    speedMult: 1.3,
+    reach: 2,
+    cost: 40,
+    trailColors: [0xffa500, 0xcd853f, 0x8b4513],
+    description: '2x damage, slower',
+  },
+  spear: {
+    name: 'Spear',
+    damageMult: 1.3,
+    speedMult: 0.8,
+    reach: 10,
+    cost: 30,
+    trailColors: [0x90ee90, 0x228b22, 0x006400],
+    description: 'Long reach, fast',
+  },
+};

@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { GAME_WIDTH, GAME_HEIGHT } from '../constants.js';
+import { GAME_WIDTH, GAME_HEIGHT, WEAPONS } from '../constants.js';
 import { UI_COLORS } from '../utils/ParchmentColors.js';
 import HealthBar from '../ui/HealthBar.js';
 import CurrencyDisplay from '../ui/CurrencyDisplay.js';
@@ -72,7 +72,7 @@ export default class HUDScene extends Phaser.Scene {
     this.territoryProgress.setDepth(100);
 
     // Class name display
-    this.classLabel = this.add.text(16, GAME_HEIGHT - 20, this.player.className, {
+    this.classLabel = this.add.text(16, GAME_HEIGHT - 34, this.player.className, {
       fontSize: '12px',
       fontFamily: 'Georgia, serif',
       color: '#8b6b4a',
@@ -80,6 +80,16 @@ export default class HUDScene extends Phaser.Scene {
     this.classLabel.setOrigin(0, 1);
     this.classLabel.setScrollFactor(0);
     this.classLabel.setDepth(100);
+
+    // Weapon label (below class name)
+    this.weaponLabel = this.add.text(16, GAME_HEIGHT - 18, 'Fists', {
+      fontSize: '12px',
+      fontFamily: 'Georgia, serif',
+      color: '#a08060',
+    });
+    this.weaponLabel.setOrigin(0, 1);
+    this.weaponLabel.setScrollFactor(0);
+    this.weaponLabel.setDepth(100);
 
     // Attack button (bottom-right, for touch/iPad)
     this.attackButton = new AttackButton(this, () => {
@@ -269,6 +279,10 @@ export default class HUDScene extends Phaser.Scene {
     // Always update health and currency (visible in village too)
     this.healthBar.update(this.player.health, this.player.maxHealth);
     this.currencyDisplay.update(this.player.inventory);
+
+    // Update weapon display
+    const wpn = WEAPONS[this.player.weapon] || WEAPONS.none;
+    this.weaponLabel.setText(wpn.name);
 
     // Skip overworld-specific updates during village mode
     if (this.inVillageMode) return;

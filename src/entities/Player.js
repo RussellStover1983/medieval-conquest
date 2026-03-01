@@ -1,4 +1,4 @@
-import { TILE_SIZE, PLAYER_BASE_SPEED, COMBAT } from '../constants.js';
+import { TILE_SIZE, PLAYER_BASE_SPEED, COMBAT, WEAPONS } from '../constants.js';
 import { CHARACTER_CLASSES } from './CharacterClasses.js';
 import { getTerrainConfig } from '../map/TerrainTypes.js';
 import { worldToTile } from '../utils/MathHelpers.js';
@@ -29,6 +29,7 @@ export default class Player {
       emerald: 0,
       ruby: 0,
     };
+    this.weapon = 'none';
 
     // Movement
     this.baseSpeed = PLAYER_BASE_SPEED;
@@ -168,6 +169,16 @@ export default class Player {
         this.breathTween.resume();
       }
     }
+  }
+
+  equipWeapon(weaponKey) {
+    if (WEAPONS[weaponKey]) {
+      this.weapon = weaponKey;
+    }
+  }
+
+  getWeaponData() {
+    return WEAPONS[this.weapon] || WEAPONS.none;
   }
 
   collectResource(type, value) {

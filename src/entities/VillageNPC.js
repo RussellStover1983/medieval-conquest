@@ -1,3 +1,7 @@
+import { WEAPONS } from '../constants.js';
+
+const SHOP_WEAPONS = Object.entries(WEAPONS).filter(([key]) => key !== 'none');
+
 const NPC_CONFIGS = {
   innkeeper: {
     name: 'Innkeeper',
@@ -19,8 +23,8 @@ const NPC_CONFIGS = {
     name: 'Blacksmith',
     tint: 0x8888cc,
     dialog: [
-      'My forge is not yet ready...',
-      'Come back another time.',
+      'Welcome to the forge!',
+      'Browse my weapons with E.',
     ],
   },
 };
@@ -30,6 +34,8 @@ export default class VillageNPC {
     this.scene = scene;
     this.type = type;
     this.config = NPC_CONFIGS[type];
+
+    this.shopIndex = 0;
 
     this.sprite = scene.add.sprite(x, y, 'detail_npc');
     this.sprite.setTint(this.config.tint);
@@ -75,10 +81,31 @@ export default class VillageNPC {
     }
 
     if (this.type === 'blacksmith') {
-      return 'The forge is cold. Come back later.';
+      const [key, weapon] = SHOP_WEAPONS[this.shopIndex];
+      this.shopIndex = (this.shopIndex + 1) % SHOP_WEAPONS.length;
+      const equipped = player.weapon === key ? ' [EQUIPPED]' : '';
+      return `${weapon.name} - ${weapon.cost} gold${equipped}\n${weapon.description}\nPress F to buy`;
     }
 
     return '';
+  }
+
+  purchase(player) {
+    if (this.type !== 'blacksmith') return '';
+
+    // shopIndex was advanced by interact(), so the displayed weapon is one behind
+    const idx = (this.shopIndex - 1 + SHOP_WEAPONS.length) % SHOP_WEAPONS.length;
+    const [key, weapon] = SHOP_WEAPONS[idx];
+
+    if (player.weapon === key) {
+      return `Already equipped ${weapon.name}!`;
+    }
+    if (player.inventory.gold < weapon.cost) {
+      return `Not enough gold! Need ${weapon.cost}.`;
+    }
+    player.inventory.gold -= weapon.cost;
+    player.equipWeapon(key);
+    return `Bought ${weapon.name}!`;
   }
 
   isNear(x, y, range = 50) {
