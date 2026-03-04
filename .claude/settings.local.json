@@ -1,8 +1,56 @@
 {
   "permissions": {
+    "deny": [
+      "Bash(rm -rf /*)",
+      "Bash(git push --force *)",
+      "Read(**/.env)"
+    ],
     "allow": [
-      "Bash(npm run:*)",
-      "Bash(start:*)"
+      "Bash(git *)",
+      "Bash(python *)",
+      "Bash(python3 *)",
+      "Bash(pip *)",
+      "Bash(pytest *)",
+      "Bash(ruff *)",
+      "Bash(alembic *)",
+      "Bash(uvicorn *)",
+      "Bash(node *)",
+      "Bash(npm *)",
+      "Bash(npx *)",
+      "Bash(pnpm *)",
+      "Bash(railway *)",
+      "Bash(gh *)",
+      "Bash(cat *)",
+      "Bash(head *)",
+      "Bash(tail *)",
+      "Bash(grep *)",
+      "Bash(find *)",
+      "Bash(ls *)",
+      "Bash(mkdir *)",
+      "Bash(cp *)",
+      "Bash(mv *)",
+      "Bash(rm *)",
+      "Bash(chmod *)",
+      "Bash(touch *)",
+      "Bash(echo *)",
+      "Bash(cd *)",
+      "Bash(source *)",
+      "Bash(unzip *)",
+      "Bash(curl *)",
+      "Bash(wc *)",
+      "Bash(sort *)",
+      "Bash(sed *)",
+      "Bash(awk *)",
+      "Bash(diff *)",
+      "Bash(which *)",
+      "Bash(sleep *)",
+      "Bash(pkill *)",
+      "Bash(timeout *)",
+      "Bash(.venv/Scripts/python.exe *)",
+      "Bash(MSYS_NO_PATHCONV=1 *)",
+      "Bash(FILTER_BRANCH_SQUELCH_WARNING=1 *)",
+      "WebSearch",
+      "WebFetch"
     ]
   }
 }

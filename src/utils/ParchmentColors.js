@@ -34,6 +34,8 @@ export const RESOURCE_COLORS = {
   silver:  0xc0c0c0,
   emerald: 0x50c878,
   ruby:    0xe0115f,
+  wood:    0x8b5e3c,
+  stone:   0x7a7068,
 };
 
 export const UI_COLORS = {

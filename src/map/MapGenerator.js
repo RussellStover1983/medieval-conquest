@@ -1,5 +1,5 @@
 import { createNoise2D } from 'simplex-noise';
-import { MAP_WIDTH, MAP_HEIGHT, TERRAIN, RESOURCES } from '../constants.js';
+import { MAP_WIDTH, MAP_HEIGHT, TERRAIN, RESOURCES, CAMP_TYPES, CAMP_SETTINGS } from '../constants.js';
 
 export default class MapGenerator {
   constructor(seed) {
@@ -11,6 +11,7 @@ export default class MapGenerator {
     this.terrain = [];
     this.villages = [];
     this.resources = [];
+    this.camps = [];
   }
 
   createRNG(seed) {
@@ -29,11 +30,13 @@ export default class MapGenerator {
     this.placeVillages();
     this.carveRivers();
     this.generateRoads();
+    this.placeCamps();
     this.scatterResources();
     return {
       terrain: this.terrain,
       villages: this.villages,
       resources: this.resources,
+      camps: this.camps,
       width: MAP_WIDTH,
       height: MAP_HEIGHT,
     };
@@ -222,6 +225,46 @@ export default class MapGenerator {
     }
   }
 
+  placeCamps() {
+    this.camps = [];
+    const campTypeEntries = Object.entries(CAMP_TYPES);
+    let placed = 0;
+    let attempts = 0;
+
+    while (placed < CAMP_SETTINGS.totalCamps && attempts < 1000) {
+      attempts++;
+      const x = Math.floor(this.rng() * (MAP_WIDTH - 4)) + 2;
+      const y = Math.floor(this.rng() * (MAP_HEIGHT - 4)) + 2;
+      if (!this.inBounds(x, y)) continue;
+      const t = this.terrain[y][x];
+
+      // Find a camp type that matches this terrain
+      const matching = campTypeEntries.filter(([_, cfg]) => cfg.terrains.includes(t));
+      if (matching.length === 0) continue;
+
+      // Check minimum distance from villages
+      let tooClose = false;
+      for (const v of this.villages) {
+        if (Math.sqrt((v.x - x) ** 2 + (v.y - y) ** 2) < CAMP_SETTINGS.minDistFromVillage) {
+          tooClose = true; break;
+        }
+      }
+      if (tooClose) continue;
+
+      // Check minimum distance from other camps
+      for (const c of this.camps) {
+        if (Math.sqrt((c.x - x) ** 2 + (c.y - y) ** 2) < CAMP_SETTINGS.minDistBetween) {
+          tooClose = true; break;
+        }
+      }
+      if (tooClose) continue;
+
+      const [typeKey, config] = matching[Math.floor(this.rng() * matching.length)];
+      this.camps.push({ x, y, typeKey, config });
+      placed++;
+    }
+  }
+
   scatterResources() {
     this.resources = [];
     const resourceTypes = [
@@ -229,6 +272,8 @@ export default class MapGenerator {
       { type: RESOURCES.SILVER, count: 40, terrain: [TERRAIN.HILLS, TERRAIN.PLAINS] },
       { type: RESOURCES.EMERALD, count: 20, terrain: [TERRAIN.FOREST] },
       { type: RESOURCES.RUBY, count: 15, terrain: [TERRAIN.MOUNTAINS, TERRAIN.HILLS] },
+      { type: RESOURCES.WOOD, count: 60, terrain: [TERRAIN.FOREST, TERRAIN.PLAINS] },
+      { type: RESOURCES.STONE, count: 40, terrain: [TERRAIN.HILLS, TERRAIN.MOUNTAINS] },
     ];
     for (const res of resourceTypes) {
       let placed = 0, attempts = 0;

@@ -11,8 +11,8 @@ const NPC_CONFIGS = {
     name: 'Merchant',
     tint: 0x44aa44,
     dialog: [
-      'Fine wares for sale!',
-      "I'll buy your gems for gold coins.",
+      'Seeking gems, traveler?',
+      'Silver from wolves, gold from bandits,\nemerald from serpents, ruby from trolls.',
     ],
   },
   blacksmith: {
@@ -57,20 +57,7 @@ export default class VillageNPC {
     }
 
     if (this.type === 'shopkeeper') {
-      let totalGold = 0;
-      const rates = { silver: 2, emerald: 5, ruby: 10 };
-      for (const [resource, rate] of Object.entries(rates)) {
-        const amount = player.currency[resource] || 0;
-        if (amount > 0) {
-          totalGold += amount * rate;
-          player.currency[resource] = 0;
-        }
-      }
-      if (totalGold > 0) {
-        player.currency.gold += totalGold;
-        return `Sold gems for ${totalGold} gold!`;
-      }
-      return 'You have nothing to sell.';
+      return 'Silver from wolves, gold from bandits,\nemerald from serpents, ruby from trolls.';
     }
 
     if (this.type === 'blacksmith') {

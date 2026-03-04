@@ -1,4 +1,5 @@
 import { GAME_WIDTH, GAME_HEIGHT, ITEMS, SHOP_ITEMS } from '../constants.js';
+import { RESOURCE_COLORS } from '../utils/ParchmentColors.js';
 
 const PANEL_W = 500;
 const PANEL_H = 400;
@@ -12,6 +13,13 @@ const ICON_KEYS = {
   health_potion: 'item_icon_potion',
   pickaxe: 'item_icon_pickaxe',
   torch: 'item_icon_torch',
+};
+
+const GEM_LABELS = {
+  gold: 'Gold',
+  silver: 'Silver',
+  emerald: 'Emerald',
+  ruby: 'Ruby',
 };
 
 export default class ShopPanel {
@@ -118,16 +126,28 @@ export default class ShopPanel {
       descText.setDepth(523);
       this.elements.push(descText);
 
-      // Cost
-      const costText = this.scene.add.text(left + PANEL_W - PAD - 120, ry + ROW_HEIGHT / 2, `${item.cost} gold`, {
-        fontSize: '12px',
-        fontFamily: 'Georgia, serif',
-        color: '#ffd700',
-      });
-      costText.setOrigin(0, 0.5);
-      costText.setScrollFactor(0);
-      costText.setDepth(523);
-      this.elements.push(costText);
+      // Cost display with gem icons
+      const gemCost = item.gemCost || {};
+      const costEntries = Object.entries(gemCost);
+      let costX = left + PANEL_W - PAD - 130;
+      for (const [gemType, amount] of costEntries) {
+        const gemColor = RESOURCE_COLORS[gemType] || 0xffffff;
+        const dot = this.scene.add.circle(costX, ry + ROW_HEIGHT / 2, 5, gemColor);
+        dot.setScrollFactor(0);
+        dot.setDepth(523);
+        this.elements.push(dot);
+
+        const costLabel = this.scene.add.text(costX + 10, ry + ROW_HEIGHT / 2, `${amount}`, {
+          fontSize: '12px',
+          fontFamily: 'Georgia, serif',
+          color: '#f4e4c1',
+        });
+        costLabel.setOrigin(0, 0.5);
+        costLabel.setScrollFactor(0);
+        costLabel.setDepth(523);
+        this.elements.push(costLabel);
+        costX += 36;
+      }
 
       // Buy button
       const buyBtn = this.scene.add.text(left + PANEL_W - PAD - 40, ry + ROW_HEIGHT / 2, 'BUY', {
@@ -149,16 +169,16 @@ export default class ShopPanel {
       this.buyButtons.push(buyBtn);
     }
 
-    // Gold display at bottom
-    this.goldText = this.scene.add.text(cx, top + PANEL_H - 24, '', {
-      fontSize: '14px',
+    // Currency display at bottom
+    this.currencyText = this.scene.add.text(cx, top + PANEL_H - 24, '', {
+      fontSize: '12px',
       fontFamily: 'Georgia, serif',
       color: '#ffd700',
     });
-    this.goldText.setOrigin(0.5, 0.5);
-    this.goldText.setScrollFactor(0);
-    this.goldText.setDepth(522);
-    this.elements.push(this.goldText);
+    this.currencyText.setOrigin(0.5, 0.5);
+    this.currencyText.setScrollFactor(0);
+    this.currencyText.setDepth(522);
+    this.elements.push(this.currencyText);
 
     // Feedback text
     this.feedbackDisplay = this.scene.add.text(cx, top + PANEL_H - 46, '', {
@@ -174,11 +194,15 @@ export default class ShopPanel {
 
   _buyItem(itemId) {
     const item = ITEMS[itemId];
-    if (!item) return;
+    if (!item || !item.gemCost) return;
 
-    if (this.player.currency.gold < item.cost) {
-      this._showFeedback('Not enough gold!', '#cc4444');
-      return;
+    // Check if player has enough of each gem type
+    for (const [gemType, amount] of Object.entries(item.gemCost)) {
+      if ((this.player.currency[gemType] || 0) < amount) {
+        const label = GEM_LABELS[gemType] || gemType;
+        this._showFeedback(`Not enough ${label}!`, '#cc4444');
+        return;
+      }
     }
 
     // For non-stackable items, check if already owned
@@ -192,10 +216,14 @@ export default class ShopPanel {
       return;
     }
 
-    this.player.currency.gold -= item.cost;
+    // Deduct gems
+    for (const [gemType, amount] of Object.entries(item.gemCost)) {
+      this.player.currency[gemType] -= amount;
+    }
+
     this.player.bag.addItem(itemId, 1);
     this._showFeedback(`Bought ${item.name}!`, '#88ff88');
-    this._updateGold();
+    this._updateCurrency();
   }
 
   _showFeedback(text, color) {
@@ -207,13 +235,16 @@ export default class ShopPanel {
     });
   }
 
-  _updateGold() {
-    this.goldText.setText(`Your Gold: ${this.player.currency.gold}`);
+  _updateCurrency() {
+    const c = this.player.currency;
+    this.currencyText.setText(
+      `Gold: ${c.gold}  Silver: ${c.silver}  Emerald: ${c.emerald}  Ruby: ${c.ruby}`
+    );
   }
 
   open() {
     this.isOpen = true;
-    this._updateGold();
+    this._updateCurrency();
     this.feedbackDisplay.setText('');
     this._showAll();
   }

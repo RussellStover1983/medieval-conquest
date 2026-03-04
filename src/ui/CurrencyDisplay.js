@@ -7,8 +7,8 @@ export default class CurrencyDisplay {
     this.y = y;
     this.items = {};
 
-    const types = ['gold', 'silver', 'emerald', 'ruby'];
-    const labels = ['Gold', 'Silver', 'Emerald', 'Ruby'];
+    const types = ['gold', 'silver', 'emerald', 'ruby', 'wood', 'stone'];
+    const labels = ['Gold', 'Silver', 'Emerald', 'Ruby', 'Wood', 'Stone'];
 
     types.forEach((type, i) => {
       const yOff = y + i * 22;

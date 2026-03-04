@@ -1,0 +1,687 @@
+================================================================================
+MEDIEVAL CONQUEST — CLAUDE CODE BUILD INSTRUCTIONS
+================================================================================
+
+PROJECT CONTEXT:
+This is a first-person medieval conquest game built in vanilla ES Modules + Vite 5.4 + Three.js. 
+It currently exists as a basic first-person game. We are evolving it into a multiplayer, 
+community-built game where a group of kids (ages 9+) play together, submit feature ideas 
+from inside the game, and those ideas get built overnight by Claude Code. The collaboration 
+layer is not a bolt-on — it is a core part of the game's identity and world.
+
+TECH STACK (DO NOT CHANGE):
+- Vanilla ES Modules (ES2020 target)
+- Vite 5.4 (dev server + production builds)
+- Three.js (3D rendering)
+- Node.js backend (new — to be created)
+- WebSocket for multiplayer (new — to be created)
+- Database for persistence (new — to be created, use SQLite via better-sqlite3 for simplicity)
+
+IMPORTANT: Keep everything in JavaScript. No TypeScript. No frameworks like React or Vue.
+All new code should use ES module import/export syntax consistent with the existing codebase.
+Read the existing codebase thoroughly before making any changes. Preserve what works.
+
+================================================================================
+PHASE 1: VISUAL UPGRADE — CEL-SHADING & ART DIRECTION
+================================================================================
+
+GOAL: Transform the visual style from basic/default Three.js to a stylized, cel-shaded 
+medieval aesthetic inspired by Zelda: Breath of the Wild's art direction. The look should 
+be warm, colorful, and painterly — not photorealistic.
+
+IMPLEMENTATION:
+
+1. CUSTOM TOON SHADER SYSTEM
+   - Create a custom ShaderMaterial-based toon shader that replaces default materials
+   - Implement stepped lighting (2-3 discrete shadow bands, not smooth gradients)
+   - Add specular highlights with a hard cutoff (not smooth falloff)
+   - Add rim lighting for backlit/side-lit edges to emphasize character and object silhouettes
+   - Use a gradient ramp texture to control the light-to-shadow transition
+   - All shaders should be in separate .glsl files imported as strings, or inline 
+     within a dedicated shader module (src/shaders/)
+
+2. OUTLINE/EDGE RENDERING
+   - Implement an outline pass using inverted-hull method (scale mesh slightly along normals, 
+     render back-faces only in black/dark color)
+   - Outline thickness should be configurable per object type (thicker for characters, 
+     thinner for terrain)
+   - This gives the cel-shaded "ink outline" look
+
+3. POST-PROCESSING
+   - Add a simple post-processing pipeline using Three.js EffectComposer
+   - Include: subtle bloom (for magical/fire effects), color grading (warm medieval palette)
+   - Keep it lightweight — performance matters more than effects since kids may be 
+     on Chromebooks or tablets
+
+4. ENVIRONMENT & LIGHTING
+   - Use a single directional light (sun) as the primary light source for the toon shader
+   - Add a warm ambient light so shadows are never pure black
+   - Implement a simple day/night cycle (gradual color shift, not full darkness)
+   - Sky should use a gradient or stylized skybox — not a photorealistic HDRI
+
+5. ART DIRECTION GUIDELINES FOR ALL FUTURE ASSETS
+   - Low-to-mid poly models with clean geometry
+   - Hand-painted style textures (flat colors with painted detail, not photo textures)
+   - Saturated, warm color palette (greens, golds, warm stone, rich wood tones)
+   - Exaggerated proportions where it serves readability (bigger swords, chunkier walls)
+   - Everything should be readable and clear at a glance — clarity over detail
+
+Create a file: src/shaders/toonShader.js that exports the shader material factory.
+Create a file: src/rendering/postProcessing.js for the effect pipeline.
+Create a utility: src/utils/materialFactory.js that wraps toon material creation 
+so all game objects use consistent shading.
+
+================================================================================
+PHASE 2: BACKEND SERVER & DATABASE
+================================================================================
+
+GOAL: Create a lightweight Node.js backend that handles multiplayer, player persistence, 
+feature submissions, voting, and changelog data.
+
+DIRECTORY STRUCTURE:
+/server
+  /src
+    server.js          — Main entry point, Express + WebSocket server
+    database.js        — SQLite setup, schema, query helpers
+    gameState.js       — In-memory multiplayer game state management
+    auth.js            — Simple player code authentication
+    submissions.js     — Feature request CRUD + voting logic
+    changelog.js       — Version history management
+  /migrations
+    001_initial.sql    — Initial database schema
+
+DATABASE SCHEMA (SQLite):
+
+TABLE players:
+  id              TEXT PRIMARY KEY (uuid)
+  player_code     TEXT UNIQUE NOT NULL (6-character alphanumeric code for login)
+  display_name    TEXT NOT NULL
+  join_date       TEXT NOT NULL (ISO datetime)
+  titles          TEXT DEFAULT '[]' (JSON array of earned titles)
+  contribution_history TEXT DEFAULT '[]' (JSON array of contribution records)
+  stats           TEXT DEFAULT '{}' (JSON — flexible stats like strength, exploration, etc)
+  inventory       TEXT DEFAULT '[]' (JSON array of inventory items)
+  personal_space  TEXT DEFAULT '{}' (JSON — layout/state of their personal keep)
+  current_position TEXT DEFAULT '{}' (JSON — last known x,y,z in world)
+  is_founder      INTEGER DEFAULT 0 (1 if joined before a configurable founder cutoff date)
+  total_play_time INTEGER DEFAULT 0 (seconds)
+  last_seen       TEXT (ISO datetime)
+
+TABLE submissions:
+  id              TEXT PRIMARY KEY (uuid)
+  player_id       TEXT NOT NULL (FK to players)
+  content         TEXT NOT NULL (the feature idea)
+  category        TEXT DEFAULT 'general' (gameplay, visual, building, combat, world, etc)
+  submitted_at    TEXT NOT NULL (ISO datetime)
+  status          TEXT DEFAULT 'pending' (pending, approved, building, completed, rejected)
+  votes           INTEGER DEFAULT 0
+  version_implemented TEXT (version string if built, null otherwise)
+
+TABLE votes:
+  id              TEXT PRIMARY KEY (uuid)
+  player_id       TEXT NOT NULL (FK to players)
+  submission_id   TEXT NOT NULL (FK to submissions)
+  voted_at        TEXT NOT NULL (ISO datetime)
+  UNIQUE(player_id, submission_id) — one vote per player per submission
+
+TABLE changelog:
+  id              TEXT PRIMARY KEY (uuid)
+  version         TEXT NOT NULL (semver like 0.1.0, 0.2.0, etc)
+  title           TEXT NOT NULL (human-readable version title, e.g. "The Drawbridge Update")
+  description     TEXT NOT NULL (what changed)
+  changes         TEXT DEFAULT '[]' (JSON array of individual changes with credit)
+  release_date    TEXT NOT NULL (ISO datetime)
+  contributors    TEXT DEFAULT '[]' (JSON array of player_ids who suggested features in this version)
+
+TABLE monuments:
+  id              TEXT PRIMARY KEY (uuid)
+  version         TEXT NOT NULL
+  event_name      TEXT NOT NULL (e.g. "The Great Wall Update")
+  active_players  TEXT DEFAULT '[]' (JSON array of player_ids active during this version)
+  created_at      TEXT NOT NULL
+
+AUTHENTICATION:
+- No emails, no passwords. Players get a 6-character alphanumeric code when they first 
+  create a character. That code is their login. They write it down or save it.
+- A parent/admin endpoint can generate new player codes and reset them if lost.
+- Endpoint: POST /api/auth/create — creates new player, returns player_code
+- Endpoint: POST /api/auth/login — accepts player_code, returns player data + session token
+- Use simple JWT for session management after login
+
+API ENDPOINTS:
+- GET    /api/player/:id              — Get player profile
+- PATCH  /api/player/:id              — Update player data (position, inventory, stats, etc)
+- GET    /api/submissions             — List all submissions (with vote counts)
+- POST   /api/submissions             — Create new submission
+- POST   /api/submissions/:id/vote    — Vote for a submission
+- GET    /api/changelog               — Get version history
+- GET    /api/changelog/latest        — Get latest version info
+- GET    /api/monuments               — Get all monuments
+- POST   /api/admin/approve/:id       — Approve a submission (requires admin key)
+- POST   /api/admin/changelog         — Add new changelog entry (used by build pipeline)
+
+ADMIN AUTH: Simple API key in environment variable. Only the parent uses admin endpoints 
+to approve submissions and trigger builds.
+
+WEBSOCKET PROTOCOL:
+The WebSocket server handles real-time multiplayer on the same port as the HTTP server.
+
+Message format (JSON):
+{
+  "type": "string",
+  "payload": { ... }
+}
+
+Message types:
+CLIENT -> SERVER:
+  "join"          — Player joining the game world { player_id, display_name }
+  "position"      — Position update { x, y, z, rotation_y }
+  "chat"          — Chat message { message }
+  "action"        — Game action { action_type, data }
+  "leave"         — Player leaving
+
+SERVER -> CLIENT:
+  "player_joined"   — Another player entered { player_id, display_name, position }
+  "player_left"     — Another player left { player_id }
+  "player_moved"    — Position update from another player { player_id, x, y, z, rotation_y }
+  "chat_message"    — Chat from another player { player_id, display_name, message, timestamp }
+  "world_state"     — Full state of all current players (sent on join)
+  "server_message"  — System announcements { message }
+
+POSITION SYNC STRATEGY:
+- Clients send position updates at ~10hz (every 100ms), not every frame
+- Server broadcasts positions to all other clients
+- Client-side interpolation smooths movement of remote players
+- This is simple and sufficient for 10-20 players in a non-competitive game
+- Do NOT implement server-authoritative physics — keep it simple, trust the clients
+  (these are 9-year-olds playing together, not a competitive esport)
+
+================================================================================
+PHASE 3: MULTIPLAYER CLIENT INTEGRATION
+================================================================================
+
+GOAL: Connect the existing Three.js game client to the WebSocket server so players 
+can see each other, move around the same world, and interact.
+
+IMPLEMENTATION:
+
+1. NETWORK MANAGER (src/network/networkManager.js)
+   - Singleton that manages the WebSocket connection
+   - Auto-reconnect on disconnect with exponential backoff
+   - Message queue for outgoing messages during brief disconnects
+   - Event emitter pattern so game systems can subscribe to network events
+   - Handles the position send throttle (10hz)
+
+2. REMOTE PLAYER RENDERING (src/entities/remotePlayer.js)
+   - When "player_joined" received, spawn a medieval character mesh at their position
+   - Use the toon shader from Phase 1
+   - Display the player's name as a floating label above their head (use a sprite or HTML overlay)
+   - Display their primary title if they have one
+   - Interpolate position updates smoothly (lerp between received positions)
+   - Simple idle/walk animation state based on whether position is changing
+   - When "player_left" received, remove the mesh and label
+
+3. LOGIN FLOW (src/ui/loginScreen.js)
+   - Before entering the game, show a simple UI screen:
+     - "Enter your Player Code" input field
+     - "New Player? Create a character" button
+   - New player flow: enter a display name -> receive a player code -> show it prominently 
+     with instructions to save it
+   - Returning player flow: enter code -> load into game at last known position
+   - Keep UI simple and large — these are kids using various devices
+   - All UI should use HTML/CSS overlays on top of the Three.js canvas, not in-world UI
+     (for the login screen specifically)
+
+4. PLAYER SELF-DATA (src/player/playerState.js)
+   - Local module that holds the current player's data
+   - Periodically saves position/inventory/stats to server via PATCH /api/player/:id
+   - Auto-save every 30 seconds and on disconnect/tab close
+
+================================================================================
+PHASE 4: TWO-LAYER WORLD ARCHITECTURE
+================================================================================
+
+GOAL: Implement the separation between the shared World Layer (changes overnight via 
+Claude Code builds) and the personal Player Layer (changes in real-time by each player).
+
+CONCEPT:
+- WORLD LAYER: The terrain, public buildings, enemies, quests, NPCs, game mechanics, 
+  items that exist in the world. This is the same for everyone. It is defined by the 
+  game code and assets. When Claude Code builds overnight, this is what changes.
+  
+- PLAYER LAYER: Each player's personal keep/home, their interior decoration, their 
+  loadout, their personal building plots. This is stored in the database per player 
+  and loaded at runtime. Changes happen live during play.
+
+WORLD LAYER IMPLEMENTATION:
+
+1. WORLD DEFINITION FILE (src/world/worldDefinition.js)
+   - Export a world config object that defines everything in the shared world
+   - Terrain data, building positions, NPC locations, enemy spawn points, item definitions
+   - This file is what Claude Code modifies during overnight builds
+   - Example structure:
+     export const WORLD_VERSION = "0.3.0";
+     export const WORLD_TITLE = "The Drawbridge Update";
+     export const worldConfig = {
+       terrain: { ... },
+       structures: [ ... ],
+       npcs: [ ... ],
+       enemies: [ ... ],
+       itemDefinitions: { ... },
+       availableBuildItems: [ ... ],  // items players CAN use in personal spaces
+       quests: [ ... ]
+     };
+
+2. VERSION AWARENESS
+   - The game client knows its own version from worldDefinition.js
+   - On login, it can compare with the server's latest changelog
+   - If there's a new version, show a brief "What's New" splash
+
+PLAYER LAYER IMPLEMENTATION:
+
+1. PERSONAL KEEP SYSTEM (src/player/personalKeep.js)
+   - Each player has a designated plot in the game world
+   - The plot location is assigned when they first create a character
+   - Personal keeps exist in a "residential district" area of the map
+   - Inside their keep boundaries, players can:
+     a. Place furniture, decorations, trophies from their inventory
+     b. Customize wall/floor materials from available options
+     c. Arrange items freely within their space
+   - Keep state is stored as JSON in the player's personal_space database field
+   - State format: { placed_items: [{ item_id, position: {x,y,z}, rotation: {y} }], ... }
+   - When any player visits another player's keep, the game fetches that player's 
+     personal_space data from the server and renders it
+
+2. PERSONAL KEEP RENDERING (src/player/keepRenderer.js)
+   - Takes a personal_space JSON object and spawns the meshes at specified positions
+   - Uses the same toon shader as everything else
+   - Handles loading/unloading as players enter/exit keep zones
+   - Other players can visit your keep and see your stuff, but can't move anything
+
+3. PLACEMENT MODE (src/player/placementMode.js)
+   - When inside their own keep, players can enter a "build mode"
+   - Simple controls: select item from inventory, see ghost preview, click to place, 
+     right-click to rotate, delete key to remove
+   - Grid snapping optional but recommended for furniture
+   - Save placement state to server on every change
+
+4. PROTECTED ZONES
+   - Personal keep plots are flagged as protected in the world data
+   - Overnight world builds must respect these zones — never overwrite the area 
+     designated for player keeps
+   - The residential district area coordinates are stored in a protected constant 
+     that Claude Code overnight builds know not to modify
+   - Add a comment block at the top of worldDefinition.js:
+     // ⚠️ PROTECTED ZONES — DO NOT MODIFY THESE COORDINATES
+     // Player keeps exist in these areas. Modifying them will destroy player data.
+     export const PROTECTED_ZONES = [ ... ];
+
+5. WORLD-TO-PLAYER BRIDGE
+   - When overnight builds add new item types to itemDefinitions, those items become 
+     available for players to earn and place in their keeps
+   - The player inventory schema is flexible (just item IDs + quantities)
+   - New item types are automatically available without migrating player data
+   - Items players already own are never removed. New versions can mark items as 
+     "legacy" but they remain in player inventories forever
+
+================================================================================
+PHASE 5: IN-GAME COLLABORATION SUITE
+================================================================================
+
+GOAL: Build the collaborative tools directly into the game world as physical locations 
+the player walks up to and interacts with.
+
+1. THE BUILDER'S HALL
+   Location: A prominent medieval workshop building near the center of the map.
+   
+   Visual design: A stone and wood workshop with a large glowing anvil or planning table 
+   as the focal point. Torches, blueprints on walls, miniature models of past features 
+   on shelves. It should feel like a place where things get made.
+
+   Interaction: When the player approaches the planning table and presses E (or taps), 
+   a UI overlay appears:
+   
+   - "Submit an Idea" — Text input with category dropdown (gameplay, visual, building, 
+     combat, world, other). Max 300 characters. Submit button.
+   - "Current Ideas" — Scrollable list of all pending submissions with vote counts. 
+     Each has a "Support This" button (one vote per player per idea).
+     Show who submitted each idea (display name).
+   - "Being Built" — List of approved ideas currently in the build queue.
+   
+   Implementation files:
+   - src/world/structures/buildersHall.js — The 3D structure and interaction trigger
+   - src/ui/buildersHallUI.js — The HTML/CSS overlay UI
+   - Both read/write from the /api/submissions endpoints
+
+2. THE CHRONICLE
+   Location: A tall stone monument or tower with carved walls, near the town center.
+   
+   Visual design: A stone obelisk or pillar covered in glowing runes/text. Or a 
+   library interior with a massive book on a pedestal. Each version gets a new "page" 
+   or "carved section."
+
+   Interaction: When approached, a UI overlay shows:
+   
+   - Version history as a scrollable timeline
+   - Each version shows: version number, title, date, description, list of changes, 
+     and WHO SUGGESTED each change (with their display name)
+   - "You were here" indicators on versions where the player was active
+   - Founder badge next to names of founding players
+   
+   Implementation files:
+   - src/world/structures/chronicle.js — The 3D structure and interaction
+   - src/ui/chronicleUI.js — The timeline overlay UI
+   - Reads from /api/changelog
+
+3. THE TOWN SQUARE NOTICE BOARD
+   Location: An open area near the Builder's Hall.
+   
+   Visual design: A large wooden notice board with pinned scrolls/papers.
+   
+   Interaction: Shows a condensed view of:
+   - Top 5 most-voted current submissions
+   - Latest changelog entry (what changed most recently)
+   - Player count / who's online right now
+   - Any system announcements
+   
+   This is a quick-glance version of the Builder's Hall + Chronicle combined. 
+   Players who want detail go to those buildings. The notice board is the "at a glance" 
+   summary they pass by regularly.
+
+   Implementation files:
+   - src/world/structures/noticeBoard.js
+   - src/ui/noticeBoardUI.js
+
+4. THE TESTING GROUNDS
+   Location: A walled-off area at the edge of the map (e.g., the eastern forest).
+   
+   Concept: When new features land in an overnight build, they can optionally be 
+   flagged as "testing grounds" features in the worldDefinition. These appear in 
+   this designated area first.
+   
+   Visual design: A glowing portal or archway that leads to the testing zone. 
+   A sign that says "New Discoveries — Enter at your own risk!"
+   
+   This makes testing new features feel like exploration rather than QA. If a feature 
+   works well, the next overnight build can graduate it to the main world.
+
+   In worldDefinition.js:
+   export const testingGroundsFeatures = [ ... ];  // Features staged here first
+
+5. PLAYER MONUMENTS
+   Location: Scattered around the world, one per major version milestone.
+   
+   Concept: Physical structures in the world that commemorate major updates. 
+   Each monument lists the players who were active during that version.
+   
+   Example: A stone archway with names carved into it — "The Great Wall Update — 
+   These players defended the realm during construction: Alex the Founder, 
+   Jake the Bridge Builder, ..."
+   
+   These are generated from the monuments table and rendered as world objects.
+   New monuments are placed by overnight builds when major versions ship.
+
+================================================================================
+PHASE 6: CHAT SYSTEM
+================================================================================
+
+GOAL: In-game text chat so players can communicate while playing.
+
+IMPLEMENTATION:
+
+1. CHAT UI (src/ui/chatUI.js)
+   - Persistent chat box in the bottom-left corner of the screen
+   - Semi-transparent dark background so it doesn't block gameplay
+   - Shows last 20 messages, scrollable
+   - Press Enter or T to open the text input, Enter to send, Escape to close
+   - While chat input is focused, game movement controls are disabled
+   - Messages show: [timestamp] PlayerName: message
+   - System messages in a different color (yellow/gold) for things like 
+     "Jake has entered the world" or "New version available!"
+   
+2. CHAT FLOW
+   - Player sends message -> WebSocket "chat" type -> Server broadcasts to all 
+     other connected players -> Appears in their chat UI
+   - Server should store last 50 messages in memory so players who join mid-session 
+     see recent chat history
+   - No persistence beyond the current server session (chat is ephemeral)
+
+3. CHAT SAFETY
+   - Implement a basic word filter on the server side for obvious profanity
+   - Rate limit: max 1 message per 2 seconds per player to prevent spam
+   - Max message length: 200 characters
+   - These are 9-year-olds — keep it safe by default
+
+================================================================================
+PHASE 7: PLAYER IDENTITY & PROGRESSION
+================================================================================
+
+GOAL: Each player has a persistent identity that grows with the game over time.
+
+1. TITLES SYSTEM
+   - Players earn titles based on their history with the game
+   - Automatic titles:
+     - "Founder" — Joined before version 1.0 (or a configurable cutoff)
+     - "Veteran" — Active for 30+ days
+     - "Explorer" — Visited all major zones in the world
+   - Contribution titles (awarded when a suggestion gets built):
+     - Format: "[Name] the [Feature]" — e.g., "Jake the Bridge Builder"
+     - When a submission by a player gets implemented, they receive a custom title 
+       based on what they suggested
+     - Stored in the player's titles array
+   - Players can choose which title to display under their name
+   - Title selection UI in a simple "Character" menu (press C or tap a UI button)
+
+2. STATS
+   - Core stats that persist across world changes:
+     - Exploration (increases by visiting new areas)
+     - Building (increases by placing items in personal keep)
+     - Combat (increases by defeating enemies)
+     - Contribution (increases when submissions are approved/built)
+   - Stats are simple integers that only go up — no resets, no losses
+   - These should be displayed in the Character menu
+
+3. INVENTORY
+   - Flexible list of { item_id: string, quantity: number } objects
+   - item_id references itemDefinitions in worldDefinition.js
+   - When new items are added to the world overnight, they just need new entries 
+     in itemDefinitions — existing player inventories are untouched
+   - Legacy items (from old versions that changed) keep their item_id and still 
+     render correctly. Never delete an item definition, only add new ones or mark 
+     old ones as legacy: true
+
+4. JOIN DATE & HISTORY
+   - join_date is permanent and never changes
+   - contribution_history is an append-only log of their suggestions and the versions 
+     they were implemented in
+   - total_play_time accumulates across all sessions
+   - This data feeds into the Chronicle and Monuments
+
+================================================================================
+PHASE 8: OVERNIGHT BUILD PIPELINE
+================================================================================
+
+GOAL: Create the infrastructure that allows Claude Code to autonomously build new 
+features overnight and deploy them.
+
+1. BUILD QUEUE FILE (server/build-queue.json)
+   - When the parent (admin) approves submissions via the admin API, they're added 
+     to this file with status and priority
+   - Format:
+     {
+       "approved_submissions": [
+         {
+           "id": "submission-uuid",
+           "content": "Add a drawbridge to the castle",
+           "category": "world",
+           "submitted_by": "player-display-name",
+           "player_id": "player-uuid",
+           "priority": 1
+         }
+       ],
+       "build_notes": "Optional parent notes for Claude Code, e.g. keep scope small"
+     }
+
+2. BUILD SCRIPT (scripts/overnight-build.sh)
+   - A shell script that Claude Code runs (or is run by a cron job / scheduled task)
+   - Steps:
+     a. Read build-queue.json for approved features
+     b. Make code changes to implement the top 2-3 features (by priority)
+     c. Run `npm run build` (Vite production build) to verify no errors
+     d. Run any tests (if they exist)
+     e. Update worldDefinition.js WORLD_VERSION and WORLD_TITLE
+     f. Generate a changelog entry and POST it to /api/admin/changelog
+     g. Award titles to players whose submissions were implemented
+     h. Update build-queue.json to mark completed submissions
+     i. Deploy the build (copy dist/ to the hosting location or push to git)
+
+3. CLAUDE CODE INSTRUCTIONS FILE (CLAUDE_CODE_BUILD_INSTRUCTIONS.md)
+   Create this file in the project root. It should contain:
+   - "Read this file before every overnight build"
+   - Rules Claude Code must follow:
+     * NEVER modify the PROTECTED_ZONES coordinates
+     * NEVER delete item definitions from worldDefinition.js (only add or mark legacy)
+     * NEVER directly modify the SQLite database or player data
+     * ALWAYS increment the version number
+     * ALWAYS credit the suggesting player in changelog entries
+     * ALWAYS run `npm run build` after changes to verify no errors
+     * Keep each feature small and testable
+     * If a feature is too complex for one night, implement a partial version 
+       and add the rest to the next build queue
+     * Maintain the toon shader / cel-shading art direction for all new visual elements
+     * Test that the WebSocket server still starts correctly after changes
+
+4. VERSION FILE (src/version.js)
+   - Simple export: export const VERSION = "0.1.0";
+   - Updated by each overnight build
+   - The game client displays this in a corner of the screen
+   - Used to compare with server changelog to detect new versions
+
+5. DEPLOYMENT
+   - For initial setup: deploy frontend to Vercel/Netlify (free tier), backend to a 
+     $5-10/month VPS (DigitalOcean, Linode, Railway, or Render)
+   - Overnight build pushes new frontend dist/ to the hosting platform via git 
+     or CLI deploy command
+   - Backend server runs persistently on the VPS via pm2 or systemd
+   - Frontend build output goes to dist/ via `npm run build`
+   - Backend starts via `node server/src/server.js`
+
+================================================================================
+PHASE 9: PROJECT STRUCTURE
+================================================================================
+
+Target directory structure after all phases:
+
+/project-root
+  /public                    — Static assets (textures, models, sounds)
+    /models                  — .glb/.gltf 3D model files
+    /textures                — Texture images
+    /shaders                 — .glsl shader files if separated from JS
+  /src
+    /shaders
+      toonShader.js          — Toon/cel-shader material factory
+    /rendering
+      postProcessing.js      — EffectComposer pipeline
+      outlinePass.js         — Outline/edge rendering
+    /network
+      networkManager.js      — WebSocket client singleton
+    /entities
+      localPlayer.js         — The current player's character controller
+      remotePlayer.js        — Other players' character rendering + interpolation
+      npc.js                 — NPC base class
+      enemy.js               — Enemy base class
+    /player
+      playerState.js         — Local player data management + auto-save
+      personalKeep.js        — Personal keep logic (placement, boundaries)
+      keepRenderer.js        — Renders a keep from JSON state
+      placementMode.js       — Build mode controls for personal space
+      titleManager.js        — Title earning and selection
+      inventoryManager.js    — Inventory operations
+    /world
+      worldDefinition.js     — THE core world state file (Claude Code modifies this)
+      worldLoader.js         — Reads worldDefinition and spawns everything
+      terrainGenerator.js    — Terrain mesh generation
+      protectedZones.js      — Protected zone constants and collision checks
+      /structures
+        buildersHall.js      — Builder's Hall 3D structure + interaction trigger
+        chronicle.js         — Chronicle monument + interaction trigger
+        noticeBoard.js       — Notice board + interaction trigger
+        testingGrounds.js    — Testing grounds portal/area
+        monument.js          — Version monument generator
+    /ui
+      loginScreen.js         — Login/character creation overlay
+      chatUI.js              — Chat box overlay
+      buildersHallUI.js      — Builder's Hall submission/voting overlay
+      chronicleUI.js         — Changelog timeline overlay
+      noticeBoardUI.js       — Quick-glance notice board overlay
+      characterMenu.js       — Stats, titles, inventory UI
+      hudUI.js               — Health, minimap, version number
+      whatsNewUI.js          — "What's New" splash on version change
+    /utils
+      materialFactory.js     — Toon material creation helper
+      mathUtils.js           — Interpolation, clamping helpers
+      uiUtils.js             — Common UI element creation helpers
+    main.js                  — Entry point
+    version.js               — Current version export
+  /server
+    /src
+      server.js              — Express + WebSocket server entry
+      database.js            — SQLite setup + queries
+      gameState.js           — In-memory multiplayer state
+      auth.js                — Player code auth + JWT
+      submissions.js         — Feature request API
+      changelog.js           — Version history API
+      wordFilter.js          — Basic profanity filter for chat
+    /migrations
+      001_initial.sql        — Database schema
+    package.json             — Server dependencies (express, ws, better-sqlite3, jsonwebtoken, uuid)
+  /scripts
+    overnight-build.sh       — Overnight build automation script
+  /dist                      — Vite production build output (generated)
+  server/build-queue.json    — Current approved feature queue
+  CLAUDE_CODE_BUILD_INSTRUCTIONS.md — Rules for overnight builds
+  vite.config.js             — Existing Vite config
+  package.json               — Existing client package.json
+  index.html                 — Existing entry HTML
+
+================================================================================
+BUILD ORDER / PRIORITY
+================================================================================
+
+Implement in this order, verifying each phase works before moving to the next:
+
+1. PHASE 1 — Cel-shading visuals (makes the game look good immediately)
+2. PHASE 2 — Backend server + database (foundation for everything else)
+3. PHASE 3 — Multiplayer connection (players can see each other)
+4. PHASE 6 — Chat (players can talk to each other)
+5. PHASE 7 — Player identity (login, stats, titles, inventory)
+6. PHASE 4 — Two-layer world architecture (personal keeps + world definition structure)
+7. PHASE 5 — Collaboration suite (Builder's Hall, Chronicle, etc.)
+8. PHASE 8 — Overnight build pipeline (automation)
+
+After each phase, run the game and verify:
+- No console errors
+- `npm run build` completes successfully
+- The game is playable (nothing broke)
+- New features are functional at a basic level
+
+================================================================================
+IMPORTANT REMINDERS
+================================================================================
+
+- This game is for 9-year-olds. Keep UI simple, text large, interactions obvious.
+- Performance matters more than visual complexity. Kids are on varied devices.
+- The collaboration features ARE the game. They're not secondary. Make them 
+  feel like a natural part of the medieval world.
+- Player data is sacred. Never risk losing it. Back up the SQLite database.
+- Keep the codebase clean and well-commented. A kid's dad is reading this code 
+  and learning alongside. Clear code is a feature.
+- Every new visual element must use the toon shader. No default Three.js materials 
+  sneaking in. Consistency is what makes the art style work.
+- The game should feel ALIVE — like it's always growing and changing. The Chronicle, 
+  the monuments, the Builder's Hall — all reinforce that this world has a history 
+  and the players are writing it.
+
+================================================================================
+END OF INSTRUCTIONS
+================================================================================

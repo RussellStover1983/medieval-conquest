@@ -9,6 +9,7 @@ import ViewToggleButton from '../ui/ViewToggleButton.js';
 import AttackButton from '../ui/AttackButton.js';
 import Hotbar from '../ui/Hotbar.js';
 import InventoryPanel from '../ui/InventoryPanel.js';
+import BuildMenu from '../ui/BuildMenu.js';
 
 export default class HUDScene extends Phaser.Scene {
   constructor() {
@@ -22,6 +23,7 @@ export default class HUDScene extends Phaser.Scene {
     this.territoryManager = data.territoryManager;
     this.mapData = data.mapData;
     this.combatSystem = data.combatSystem;
+    this.buildingSystem = data.buildingSystem;
   }
 
   create() {
@@ -34,6 +36,9 @@ export default class HUDScene extends Phaser.Scene {
     // Mini-map (bottom-right)
     this.miniMap = new MiniMap(this, GAME_WIDTH - 142, GAME_HEIGHT - 142, 128);
     this.miniMap.renderTerrain(this.mapData.terrain);
+    if (this.mapData.camps) {
+      this.miniMap.renderCamps(this.mapData.camps);
+    }
 
     // View toggle button (top-right)
     this.viewToggle = new ViewToggleButton(this, GAME_WIDTH - 60, 30, () => {
@@ -109,6 +114,15 @@ export default class HUDScene extends Phaser.Scene {
       this.hotbar.refresh();
       if (this.inventoryPanel.isOpen) this.inventoryPanel.refresh();
     };
+
+    // Build menu (B key to toggle)
+    this.buildMenu = new BuildMenu(this, this.player, this.buildingSystem);
+    this.bKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.B);
+    this.bKeyJustPressed = false;
+
+    // ESC key for cancelling placement
+    this.escKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.ESC);
+    this.escKeyJustPressed = false;
 
     // Tab key to toggle inventory (capture to prevent browser focus switch)
     this.input.keyboard.addCapture('TAB');
@@ -312,6 +326,34 @@ export default class HUDScene extends Phaser.Scene {
     // Update weapon display
     const wpn = WEAPONS[this.player.weapon] || WEAPONS.none;
     this.weaponLabel.setText(wpn.name);
+
+    // B key: toggle build menu
+    const bDown = this.bKey.isDown;
+    if (bDown && !this.bKeyJustPressed) {
+      this.bKeyJustPressed = true;
+      if (!this.inventoryPanel.isOpen) {
+        this.buildMenu.toggle();
+        const gameScene = this.scene.get('GameScene');
+        gameScene.events.emit('pauseInput', this.buildMenu.isOpen);
+      }
+    } else if (!bDown) {
+      this.bKeyJustPressed = false;
+    }
+
+    // ESC key: cancel building placement
+    const escDown = this.escKey.isDown;
+    if (escDown && !this.escKeyJustPressed) {
+      this.escKeyJustPressed = true;
+      if (this.buildingSystem && this.buildingSystem.isPlacing) {
+        this.buildingSystem.cancelPlacement();
+      } else if (this.buildMenu.isOpen) {
+        this.buildMenu.close();
+        const gameScene = this.scene.get('GameScene');
+        gameScene.events.emit('pauseInput', false);
+      }
+    } else if (!escDown) {
+      this.escKeyJustPressed = false;
+    }
 
     // Tab key: toggle inventory
     const tabDown = this.tabKey.isDown;

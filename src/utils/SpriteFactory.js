@@ -13,6 +13,8 @@ export default class SpriteFactory {
     SpriteFactory.generateParticleTextures(scene);
     SpriteFactory.generateVillageTextures(scene);
     SpriteFactory._generateItemIcons(scene);
+    SpriteFactory.generateCampTextures(scene);
+    SpriteFactory.generateBuildingTextures(scene);
   }
 
   // ── Terrain tile textures (32x32 with noise variation) ─────────────────
@@ -438,6 +440,49 @@ export default class SpriteFactory {
       g.fillRect(cx - 1, cy - 4, 1, 1);
 
       g.generateTexture(key, s, s);
+      g.destroy();
+    }
+
+    // Wood resource (log bundle)
+    {
+      const g = scene.add.graphics();
+      const s = 12;
+      // Three stacked logs
+      g.fillStyle(0x6b4226, 1);
+      g.fillRect(1, 2, 10, 3);  // bottom log
+      g.fillRect(2, 5, 8, 3);   // middle log
+      g.fillRect(3, 8, 6, 3);   // top log
+      // Highlights on each log
+      g.fillStyle(0x8b5e3c, 0.8);
+      g.fillRect(2, 2, 8, 1);
+      g.fillRect(3, 5, 6, 1);
+      g.fillRect(4, 8, 4, 1);
+      // End grain circles
+      g.fillStyle(0x5a3520, 1);
+      g.fillRect(1, 3, 2, 1);
+      g.fillRect(9, 3, 2, 1);
+      g.generateTexture('resource_wood', s, s);
+      g.destroy();
+    }
+
+    // Stone resource (gray chunk)
+    {
+      const g = scene.add.graphics();
+      const s = 12;
+      // Irregular stone shape
+      g.fillStyle(0x7a7068, 1);
+      g.fillRect(2, 3, 8, 6);
+      g.fillRect(3, 2, 6, 8);
+      g.fillRect(1, 4, 10, 4);
+      // Highlight facet
+      g.fillStyle(0x9a9088, 0.7);
+      g.fillRect(3, 2, 4, 3);
+      g.fillRect(2, 3, 3, 2);
+      // Shadow
+      g.fillStyle(0x5a5850, 0.6);
+      g.fillRect(6, 7, 4, 2);
+      g.fillRect(8, 6, 2, 3);
+      g.generateTexture('resource_stone', s, s);
       g.destroy();
     }
   }
@@ -1129,6 +1174,213 @@ export default class SpriteFactory {
         frameRate: 6,
         repeat: -1,
       });
+    }
+  }
+
+  // ── Camp textures ─────────────────────────────────────────────────────────
+
+  static generateCampTextures(scene) {
+    // Tent (24x24)
+    {
+      const g = scene.add.graphics();
+      const s = 24;
+      // Tent body (triangle)
+      g.fillStyle(0x8b6b4a, 1);
+      g.fillRect(2, 16, 20, 6);   // base
+      g.fillRect(4, 12, 16, 4);
+      g.fillRect(6, 8, 12, 4);
+      g.fillRect(8, 5, 8, 3);
+      g.fillRect(10, 3, 4, 2);
+      // Entrance flap (darker)
+      g.fillStyle(0x5c3a1e, 1);
+      g.fillRect(9, 14, 6, 8);
+      // Pole at peak
+      g.fillStyle(0x4a2a10, 1);
+      g.fillRect(11, 1, 2, 4);
+      // Highlight
+      g.fillStyle(0xa08060, 0.5);
+      g.fillRect(5, 9, 4, 3);
+      g.fillRect(7, 6, 3, 3);
+      g.generateTexture('detail_camp_tent', s, s);
+      g.destroy();
+    }
+
+    // Campfire (16x16)
+    {
+      const g = scene.add.graphics();
+      const s = 16;
+      // Red glow circle
+      g.fillStyle(0xff4400, 0.2);
+      g.fillCircle(8, 10, 7);
+      // Crossed logs
+      g.fillStyle(0x6b4226, 1);
+      g.fillRect(3, 11, 10, 2);
+      g.fillRect(5, 10, 2, 4);
+      g.fillRect(9, 10, 2, 4);
+      // Flames (orange/yellow layers)
+      g.fillStyle(0xff6600, 1);
+      g.fillRect(5, 6, 6, 5);
+      g.fillRect(6, 4, 4, 3);
+      g.fillStyle(0xffaa00, 1);
+      g.fillRect(6, 5, 4, 4);
+      g.fillRect(7, 3, 2, 3);
+      g.fillStyle(0xffdd00, 0.8);
+      g.fillRect(7, 5, 2, 3);
+      g.generateTexture('detail_camp_fire', s, s);
+      g.destroy();
+    }
+  }
+
+  // ── Building textures ─────────────────────────────────────────────────────
+
+  static generateBuildingTextures(scene) {
+    // Wall (32x32)
+    {
+      const g = scene.add.graphics();
+      const s = 32;
+      // Stone blocks
+      g.fillStyle(0x7a7068, 1);
+      g.fillRect(0, 4, 32, 28);
+      // Mortar lines
+      g.fillStyle(0x5a5850, 1);
+      g.fillRect(0, 10, 32, 1);
+      g.fillRect(0, 18, 32, 1);
+      g.fillRect(0, 26, 32, 1);
+      g.fillRect(8, 4, 1, 6);
+      g.fillRect(16, 11, 1, 7);
+      g.fillRect(24, 4, 1, 6);
+      g.fillRect(8, 19, 1, 7);
+      g.fillRect(24, 19, 1, 7);
+      // Top crenellation
+      g.fillStyle(0x8a8078, 1);
+      g.fillRect(0, 0, 8, 6);
+      g.fillRect(12, 0, 8, 6);
+      g.fillRect(24, 0, 8, 6);
+      // Highlight
+      g.fillStyle(0x9a9088, 0.4);
+      g.fillRect(1, 1, 6, 2);
+      g.fillRect(13, 1, 6, 2);
+      g.fillRect(25, 1, 6, 2);
+      g.generateTexture('building_wall', s, s);
+      g.destroy();
+    }
+
+    // Tower (32x48)
+    {
+      const g = scene.add.graphics();
+      const w = 32, h = 48;
+      // Stone base
+      g.fillStyle(0x7a7068, 1);
+      g.fillRect(4, 16, 24, 32);
+      // Mortar
+      g.fillStyle(0x5a5850, 1);
+      g.fillRect(4, 24, 24, 1);
+      g.fillRect(4, 32, 24, 1);
+      g.fillRect(4, 40, 24, 1);
+      g.fillRect(16, 16, 1, 32);
+      // Pointed roof
+      g.fillStyle(0x8b4513, 1);
+      g.fillRect(6, 10, 20, 8);
+      g.fillRect(8, 6, 16, 6);
+      g.fillRect(10, 3, 12, 4);
+      g.fillRect(13, 0, 6, 4);
+      // Flag at top
+      g.fillStyle(0xcc3333, 1);
+      g.fillRect(18, 0, 6, 4);
+      g.fillRect(18, 4, 4, 2);
+      // Pole
+      g.fillStyle(0x4a2a10, 1);
+      g.fillRect(16, 0, 2, 10);
+      // Window slit
+      g.fillStyle(0x2c1810, 1);
+      g.fillRect(14, 26, 4, 6);
+      // Highlight
+      g.fillStyle(0x9a9088, 0.3);
+      g.fillRect(5, 17, 10, 6);
+      g.generateTexture('building_tower', w, h);
+      g.destroy();
+    }
+
+    // Fort (48x48)
+    {
+      const g = scene.add.graphics();
+      const s = 48;
+      // Outer walls
+      g.fillStyle(0x7a7068, 1);
+      g.fillRect(0, 0, 48, 48);
+      // Inner courtyard
+      g.fillStyle(0x9e8e6e, 1);
+      g.fillRect(8, 8, 32, 32);
+      // Corner turrets
+      g.fillStyle(0x8a8078, 1);
+      g.fillRect(0, 0, 10, 10);
+      g.fillRect(38, 0, 10, 10);
+      g.fillRect(0, 38, 10, 10);
+      g.fillRect(38, 38, 10, 10);
+      // Gate
+      g.fillStyle(0x5c3a1e, 1);
+      g.fillRect(18, 40, 12, 8);
+      // Gate arch
+      g.fillStyle(0x6b6157, 1);
+      g.fillRect(16, 38, 16, 3);
+      // Turret highlights
+      g.fillStyle(0x9a9088, 0.4);
+      g.fillRect(1, 1, 4, 4);
+      g.fillRect(39, 1, 4, 4);
+      g.fillRect(1, 39, 4, 4);
+      g.fillRect(39, 39, 4, 4);
+      g.generateTexture('building_fort', s, s);
+      g.destroy();
+    }
+
+    // Castle (64x64)
+    {
+      const g = scene.add.graphics();
+      const s = 64;
+      // Thick outer walls
+      g.fillStyle(0x6b6157, 1);
+      g.fillRect(0, 0, 64, 64);
+      // Inner area
+      g.fillStyle(0x9e8e6e, 1);
+      g.fillRect(10, 10, 44, 44);
+      // 4 corner towers
+      g.fillStyle(0x7a7068, 1);
+      g.fillRect(0, 0, 14, 14);
+      g.fillRect(50, 0, 14, 14);
+      g.fillRect(0, 50, 14, 14);
+      g.fillRect(50, 50, 14, 14);
+      // Central keep
+      g.fillStyle(0x8a8078, 1);
+      g.fillRect(20, 16, 24, 28);
+      // Keep roof
+      g.fillStyle(0x8b4513, 1);
+      g.fillRect(22, 12, 20, 6);
+      g.fillRect(26, 8, 12, 5);
+      // Gate with portcullis
+      g.fillStyle(0x5c3a1e, 1);
+      g.fillRect(26, 54, 12, 10);
+      // Gate arch
+      g.fillStyle(0x7a7068, 1);
+      g.fillRect(24, 52, 16, 3);
+      // Banner on keep
+      g.fillStyle(0xcc3333, 1);
+      g.fillRect(30, 4, 8, 5);
+      g.fillRect(30, 9, 6, 3);
+      // Pole
+      g.fillStyle(0x4a2a10, 1);
+      g.fillRect(29, 2, 2, 10);
+      // Tower crenellation
+      g.fillStyle(0x8a8078, 0.6);
+      g.fillRect(1, 1, 5, 3);
+      g.fillRect(8, 1, 5, 3);
+      g.fillRect(51, 1, 5, 3);
+      g.fillRect(58, 1, 5, 3);
+      // Window on keep
+      g.fillStyle(0x2c1810, 1);
+      g.fillRect(28, 22, 4, 6);
+      g.fillRect(36, 22, 4, 6);
+      g.generateTexture('building_castle', s, s);
+      g.destroy();
     }
   }
 }

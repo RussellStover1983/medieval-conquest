@@ -56,6 +56,19 @@ export default class MiniMap {
     g.destroy();
   }
 
+  renderCamps(camps) {
+    if (!camps || camps.length === 0) return;
+    this.campDots = [];
+    for (const camp of camps) {
+      const mx = this.x + 2 + camp.x * this.scaleX;
+      const my = this.y + 2 + camp.y * this.scaleY;
+      const dot = this.scene.add.circle(mx, my, 2, 0xcc4444);
+      dot.setScrollFactor(0);
+      dot.setDepth(102);
+      this.campDots.push(dot);
+    }
+  }
+
   updatePlayerPosition(worldX, worldY) {
     const mx = this.x + 2 + (worldX / (MAP_WIDTH * TILE_SIZE)) * this.size;
     const my = this.y + 2 + (worldY / (MAP_HEIGHT * TILE_SIZE)) * this.size;
@@ -67,5 +80,8 @@ export default class MiniMap {
     this.rt.setVisible(visible);
     this.playerDot.setVisible(visible);
     this.border.setVisible(visible);
+    if (this.campDots) {
+      for (const dot of this.campDots) dot.setVisible(visible);
+    }
   }
 }

@@ -10,6 +10,7 @@ import CameraController from '../systems/CameraController.js';
 import EnemySpawner from '../systems/EnemySpawner.js';
 import CombatSystem from '../systems/CombatSystem.js';
 import ParticleManager from '../systems/ParticleManager.js';
+import BuildingSystem from '../systems/BuildingSystem.js';
 import { tileToWorld, worldToTile } from '../utils/MathHelpers.js';
 
 export default class GameScene extends Phaser.Scene {
@@ -70,8 +71,11 @@ export default class GameScene extends Phaser.Scene {
       };
 
       // Enemy spawner + combat system
-      this.enemySpawner = new EnemySpawner(this, this.mapData.terrain);
+      this.enemySpawner = new EnemySpawner(this, this.mapData.terrain, this.mapData.camps);
       this.combatSystem = new CombatSystem(this, this.player, this.enemySpawner);
+
+      // Building system
+      this.buildingSystem = new BuildingSystem(this, this.player, this.mapData.terrain, this.territoryManager);
 
       // Launch HUD overlay scene
       this.scene.launch('HUDScene', {
@@ -81,6 +85,7 @@ export default class GameScene extends Phaser.Scene {
         territoryManager: this.territoryManager,
         mapData: this.mapData,
         combatSystem: this.combatSystem,
+        buildingSystem: this.buildingSystem,
       });
       // Keep keyboard input active even with HUD scene on top
       this.input.keyboard.enabled = true;
@@ -137,6 +142,9 @@ export default class GameScene extends Phaser.Scene {
         const pos = this.player.getPosition();
         this.enemySpawner.update(dt, pos.x, pos.y);
         this.combatSystem.update(dt);
+
+        // Building system ghost placement
+        this.buildingSystem.update(dt);
       }
 
       // Track territory discovery
@@ -168,12 +176,17 @@ export default class GameScene extends Phaser.Scene {
         this._checkVillageProximity(tilePos);
       }
 
-      // Village entry: E key
+      // E key: building placement takes priority over village entry
       if (!this.enteringVillage) {
         const eDown = this.eKey.isDown;
         if (eDown && !this.eKeyJustPressed) {
           this.eKeyJustPressed = true;
-          if (this.nearVillage) {
+          if (this.buildingSystem.isPlacing) {
+            const placed = this.buildingSystem.confirmPlacement();
+            if (placed) {
+              this.events.emit('buildingPlaced');
+            }
+          } else if (this.nearVillage) {
             this._enterVillage(this.nearVillage);
           }
         } else if (!eDown) {

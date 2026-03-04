@@ -29,6 +29,8 @@ export default class Player {
       silver: 0,
       emerald: 0,
       ruby: 0,
+      wood: 0,
+      stone: 0,
     };
     this.bag = new Inventory();
     this.weapon = 'none';

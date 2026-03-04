@@ -1,13 +1,19 @@
 import { TILE_SIZE } from '../constants.js';
 import { distance } from '../utils/MathHelpers.js';
 
-const STATE = { IDLE: 0, CHASE: 1, ATTACK: 2, DEAD: 3 };
+const STATE = { IDLE: 0, CHASE: 1, ATTACK: 2, DEAD: 3, RETURN: 4 };
 
 export default class Enemy {
-  constructor(scene, x, y, config) {
+  constructor(scene, x, y, config, campX = null, campY = null, patrolRadius = 80, ventureRadius = 160) {
     this.scene = scene;
     this.config = config;
     this.state = STATE.IDLE;
+
+    // Camp-aware properties
+    this.campX = campX;
+    this.campY = campY;
+    this.patrolRadius = patrolRadius;
+    this.ventureRadius = ventureRadius;
 
     // Determine enemy type key for texture lookup
     this.typeKey = config.name.replace(/\s/g, '');
@@ -59,10 +65,12 @@ export default class Enemy {
     this.attackTimer = 0;
     this.knockbackTimer = 0;
 
-    // Idle wander
+    // Idle wander / patrol
     this.wanderAngle = Math.random() * Math.PI * 2;
     this.wanderTimer = 1000 + Math.random() * 2000;
     this.idleTimer = 0;
+    this.patrolTargetX = null;
+    this.patrolTargetY = null;
 
     // Track if active
     this.active = true;
@@ -93,6 +101,9 @@ export default class Enemy {
       case STATE.ATTACK:
         this.updateAttack(dtMs, dist, playerX, playerY);
         break;
+      case STATE.RETURN:
+        this.updateReturn(dist, playerX, playerY);
+        break;
     }
 
     this.updateHealthBar();
@@ -111,29 +122,70 @@ export default class Enemy {
       this.sprite.play(`enemy_${this.typeKey}_idle`, true);
     }
 
-    // Wander
-    this.idleTimer += dtMs;
-    if (this.idleTimer >= this.wanderTimer) {
-      this.idleTimer = 0;
-      this.wanderTimer = 1000 + Math.random() * 2000;
-      this.wanderAngle = Math.random() * Math.PI * 2;
+    // Camp patrol or random wander
+    if (this.campX !== null) {
+      // Patrol around camp
+      this.idleTimer += dtMs;
+      if (this.idleTimer >= this.wanderTimer || this.patrolTargetX === null) {
+        this.idleTimer = 0;
+        this.wanderTimer = 1500 + Math.random() * 2500;
+        const angle = Math.random() * Math.PI * 2;
+        const r = Math.random() * this.patrolRadius;
+        this.patrolTargetX = this.campX + Math.cos(angle) * r;
+        this.patrolTargetY = this.campY + Math.sin(angle) * r;
+      }
+
+      const dx = this.patrolTargetX - this.sprite.x;
+      const dy = this.patrolTargetY - this.sprite.y;
+      const patrolDist = Math.sqrt(dx * dx + dy * dy);
+
+      if (patrolDist < 5) {
+        this.sprite.body.setVelocity(0, 0);
+      } else {
+        const wanderSpeed = this.config.speed * 0.3;
+        this.sprite.body.setVelocity(
+          (dx / patrolDist) * wanderSpeed,
+          (dy / patrolDist) * wanderSpeed
+        );
+        this.sprite.setFlipX(dx < 0);
+      }
+    } else {
+      // Original random wander (no camp)
+      this.idleTimer += dtMs;
+      if (this.idleTimer >= this.wanderTimer) {
+        this.idleTimer = 0;
+        this.wanderTimer = 1000 + Math.random() * 2000;
+        this.wanderAngle = Math.random() * Math.PI * 2;
+      }
+
+      const wanderSpeed = this.config.speed * 0.3;
+      const vx = Math.cos(this.wanderAngle) * wanderSpeed;
+      const vy = Math.sin(this.wanderAngle) * wanderSpeed;
+      this.sprite.body.setVelocity(vx, vy);
+      this.sprite.setFlipX(vx < 0);
     }
-
-    const wanderSpeed = this.config.speed * 0.3;
-    const vx = Math.cos(this.wanderAngle) * wanderSpeed;
-    const vy = Math.sin(this.wanderAngle) * wanderSpeed;
-    this.sprite.body.setVelocity(vx, vy);
-
-    // Flip sprite based on horizontal movement
-    this.sprite.setFlipX(vx < 0);
   }
 
   updateChase(dist, playerX, playerY) {
+    // Check venture radius — if too far from camp, return
+    if (this.campX !== null) {
+      const campDist = distance(this.sprite.x, this.sprite.y, this.campX, this.campY);
+      if (campDist > this.ventureRadius) {
+        this.state = STATE.RETURN;
+        this.sprite.play(`enemy_${this.typeKey}_chase`, true);
+        return;
+      }
+    }
+
     // Deaggro if too far
     if (dist > 192) {
-      this.state = STATE.IDLE;
-      this.sprite.body.setVelocity(0, 0);
-      this.sprite.play(`enemy_${this.typeKey}_idle`, true);
+      if (this.campX !== null) {
+        this.state = STATE.RETURN;
+      } else {
+        this.state = STATE.IDLE;
+        this.sprite.body.setVelocity(0, 0);
+        this.sprite.play(`enemy_${this.typeKey}_idle`, true);
+      }
       return;
     }
 
@@ -175,6 +227,39 @@ export default class Enemy {
       return true;
     }
     return false;
+  }
+
+  updateReturn(dist, playerX, playerY) {
+    if (this.campX === null) {
+      this.state = STATE.IDLE;
+      return;
+    }
+
+    // Walk back to camp
+    const dx = this.campX - this.sprite.x;
+    const dy = this.campY - this.sprite.y;
+    const campDist = Math.sqrt(dx * dx + dy * dy);
+
+    if (campDist < this.patrolRadius * 0.5) {
+      // Close enough to camp, go idle
+      this.state = STATE.IDLE;
+      this.sprite.body.setVelocity(0, 0);
+      this.sprite.play(`enemy_${this.typeKey}_idle`, true);
+      this.patrolTargetX = null;
+      return;
+    }
+
+    // Play chase anim (reuse for movement)
+    if (!this.sprite.anims.currentAnim || this.sprite.anims.currentAnim.key !== `enemy_${this.typeKey}_chase`) {
+      this.sprite.play(`enemy_${this.typeKey}_chase`, true);
+    }
+
+    const len = campDist || 1;
+    this.sprite.body.setVelocity(
+      (dx / len) * this.config.speed,
+      (dy / len) * this.config.speed
+    );
+    this.sprite.setFlipX(dx < 0);
   }
 
   canAttack() {
