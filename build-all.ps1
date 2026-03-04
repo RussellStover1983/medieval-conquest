@@ -1,30 +1,15 @@
 # ============================================================================
 # MEDIEVAL CONQUEST — AUTONOMOUS BUILD SCRIPT (PowerShell)
 # ============================================================================
-#
-# HOW TO USE:
-# 1. Place this script in your project root (same folder as package.json)
-# 2. Place medieval-conquest-claude-code-prompt.txt in your project root
-# 3. Open PowerShell in your project folder
-# 4. If needed, allow script execution (one time):
-#      Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
-# 5. Run it:
-#      .\build-all.ps1
-#
-# PREREQUISITES:
-# - Claude Code installed (npm install -g @anthropic-ai/claude-code)
-# - You're in your project directory
-# - Your ANTHROPIC_API_KEY is set (or you're logged in to Claude Code)
-#
-# ESTIMATED TIME: 30-90 minutes depending on API speed and complexity
-#
-# SAFETY: Claude Code can read/write/edit files and run bash commands.
-#         It CANNOT delete your git history. Commit before running this.
+# USAGE:
+#   1. Place this file + medieval-conquest-claude-code-prompt.txt in project root
+#   2. git add -A; git commit -m "pre-build checkpoint"
+#   3. Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned  (one time)
+#   4. .\build-all.ps1
+# ESTIMATED TIME: 30-90 minutes
 # ============================================================================
 
 $ErrorActionPreference = "Continue"
-
-# Log file
 $LogFile = "build-log-$(Get-Date -Format 'yyyyMMdd-HHmmss').txt"
 
 function Log {
@@ -33,383 +18,339 @@ function Log {
     Add-Content -Path $LogFile -Value $Message
 }
 
-# ============================================================================
-# PRE-FLIGHT CHECKS
-# ============================================================================
+# ── Pre-flight checks ──────────────────────────────────────────────────────
 
 Log "============================================" "Cyan"
 Log "  MEDIEVAL CONQUEST — AUTONOMOUS BUILD" "Cyan"
 Log "============================================" "Cyan"
 Log ""
 
-# Check Claude Code is installed
-$claudeCmd = Get-Command claude -ErrorAction SilentlyContinue
-if (-not $claudeCmd) {
-    Log "ERROR: Claude Code is not installed." "Red"
-    Log "Install it with: npm install -g @anthropic-ai/claude-code"
+if (-not (Get-Command claude -ErrorAction SilentlyContinue)) {
+    Log "ERROR: Claude Code not installed. Run: npm install -g @anthropic-ai/claude-code" "Red"
     exit 1
 }
-
-# Check we're in a project directory
 if (-not (Test-Path "package.json")) {
-    Log "ERROR: No package.json found. Run this from your project root." "Red"
+    Log "ERROR: No package.json. Run this from your project root." "Red"
     exit 1
 }
-
-# Check the prompt file exists
 $PromptFile = "medieval-conquest-claude-code-prompt.txt"
 if (-not (Test-Path $PromptFile)) {
     Log "ERROR: $PromptFile not found in project root." "Red"
     exit 1
 }
 
-Log "WARNING: Make sure you've committed your current code to git." "Yellow"
-Log "  This script will modify many files autonomously." "Yellow"
-Log "  Run 'git add -A && git commit -m `"pre-build checkpoint`"' first." "Yellow"
-Log ""
-Read-Host "Press Enter to continue (or Ctrl+C to abort)"
+Log "Make sure you've committed: git add -A; git commit -m `"pre-build`"" "Yellow"
+Read-Host "Press Enter to continue (Ctrl+C to abort)"
 Log ""
 
-# Read the master prompt
 $MasterPrompt = Get-Content $PromptFile -Raw
 
-# ============================================================================
-# HELPER FUNCTIONS
-# ============================================================================
+# ── Helpers ─────────────────────────────────────────────────────────────────
 
 function Run-Phase {
-    param(
-        [int]$PhaseNum,
-        [string]$PhaseName,
-        [string]$PhasePrompt
-    )
+    param([int]$Num, [string]$Name, [string]$Prompt)
 
-    Log "--------------------------------------------" "Cyan"
-    Log "  PHASE $PhaseNum`: $PhaseName" "Cyan"
-    Log "--------------------------------------------" "Cyan"
-    Log "Started at: $(Get-Date)"
-    Log ""
+    Log "──────────────────────────────────────────" "Cyan"
+    Log "  PHASE $Num`: $Name" "Cyan"
+    Log "  Started: $(Get-Date)" "Cyan"
+    Log "──────────────────────────────────────────" "Cyan"
 
-    # Write the prompt to a temp file to avoid PowerShell string escaping issues
-    $TempPromptFile = "temp-phase-prompt-$PhaseNum.txt"
-    Set-Content -Path $TempPromptFile -Value $PhasePrompt -Encoding UTF8
+    $tmp = "temp-phase-$Num.txt"
+    Set-Content -Path $tmp -Value $Prompt -Encoding UTF8
 
     try {
-        # Run Claude Code in headless mode
-        $output = & claude -p (Get-Content $TempPromptFile -Raw) `
+        & claude -p (Get-Content $tmp -Raw) `
             --permission-mode acceptEdits `
             --allowedTools "Read,Write,Edit,Bash(npm *),Bash(node *),Bash(mkdir *),Bash(cp *),Bash(mv *),Bash(cat *),Bash(ls *),Bash(find *),Bash(head *),Bash(tail *),Bash(wc *),Bash(grep *),Bash(touch *),Bash(echo *),Bash(cd *),Bash(npx *)" `
-            --max-turns 200 2>&1
-
-        # Display and log output
-        $output | ForEach-Object {
-            Write-Host $_
-            Add-Content -Path $LogFile -Value $_
-        }
-
-        Log "" 
-        Log "Phase $PhaseNum ($PhaseName) — Claude Code completed" "Green"
+            --max-turns 200 2>&1 | ForEach-Object {
+                Write-Host $_
+                Add-Content -Path $LogFile -Value $_
+            }
+        Log "Phase $Num complete" "Green"
     }
     catch {
-        Log "" 
-        Log "Phase $PhaseNum ($PhaseName) — Claude Code encountered an error" "Red"
-        Log "Error: $_" "Red"
-        Log "Check the log above. You may need to fix manually and re-run." "Yellow"
-        Remove-Item $TempPromptFile -ErrorAction SilentlyContinue
+        Log "Phase $Num ERROR: $_" "Red"
+        Remove-Item $tmp -ErrorAction SilentlyContinue
         exit 1
     }
-    finally {
-        Remove-Item $TempPromptFile -ErrorAction SilentlyContinue
-    }
-
-    Log ""
-    Log "Finished at: $(Get-Date)"
+    finally { Remove-Item $tmp -ErrorAction SilentlyContinue }
+    Log "  Finished: $(Get-Date)" "Cyan"
     Log ""
 }
 
 function Verify-Build {
-    param([int]$PhaseNum)
+    param([int]$Num)
+    Log "Verifying build after Phase $Num..." "Yellow"
 
-    Log "Verifying build after Phase $PhaseNum..." "Yellow"
-
-    $buildResult = & npm run build 2>&1
-    $buildResult | ForEach-Object {
-        Add-Content -Path $LogFile -Value $_
-    }
+    $result = & npm run build 2>&1
+    $result | ForEach-Object { Add-Content -Path $LogFile -Value $_ }
 
     if ($LASTEXITCODE -eq 0) {
-        Log "Build verification passed after Phase $PhaseNum" "Green"
+        Log "Build PASSED after Phase $Num" "Green"
+        return
     }
-    else {
-        Log "Build failed after Phase $PhaseNum" "Red"
-        Log "Attempting auto-fix..." "Yellow"
 
-        $errorText = $buildResult -join "`n"
+    Log "Build FAILED — auto-fixing..." "Red"
+    $errors = $result -join "`n"
 
-        try {
-            & claude -p "The build failed after Phase $PhaseNum. Here are the errors:`n$errorText`n`nFix all build errors. Do not change any game logic, only fix the errors that prevent the build from completing." `
-                --permission-mode acceptEdits `
-                --allowedTools "Read,Write,Edit,Bash(npm *),Bash(node *),Bash(cat *),Bash(ls *)" `
-                --max-turns 50 2>&1 | ForEach-Object {
-                    Write-Host $_
-                    Add-Content -Path $LogFile -Value $_
-                }
-        }
-        catch {
-            Log "Auto-fix attempt failed: $_" "Red"
-        }
+    try {
+        & claude -p "The Vite build failed after Phase $Num. Errors:`n$errors`n`nFix all build errors. Only fix errors, do not change logic." `
+            --permission-mode acceptEdits `
+            --allowedTools "Read,Write,Edit,Bash(npm *),Bash(node *),Bash(cat *),Bash(ls *)" `
+            --max-turns 50 2>&1 | ForEach-Object {
+                Write-Host $_; Add-Content -Path $LogFile -Value $_
+            }
+    } catch { Log "Auto-fix error: $_" "Red" }
 
-        # Try build again
-        $retryResult = & npm run build 2>&1
-        $retryResult | ForEach-Object {
-            Add-Content -Path $LogFile -Value $_
-        }
+    $retry = & npm run build 2>&1
+    $retry | ForEach-Object { Add-Content -Path $LogFile -Value $_ }
 
-        if ($LASTEXITCODE -eq 0) {
-            Log "Build fixed and passing after Phase $PhaseNum" "Green"
-        }
-        else {
-            Log "Build still failing. Manual intervention needed." "Red"
-            Log "Fix the errors, then re-run this script." "Yellow"
-            Log "You can comment out completed phases in the script." "Yellow"
-            exit 1
-        }
+    if ($LASTEXITCODE -eq 0) {
+        Log "Build FIXED after Phase $Num" "Green"
+    } else {
+        Log "Build still failing. Manual fix needed." "Red"
+        exit 1
     }
     Log ""
 }
 
 # ============================================================================
-# EXECUTE ALL PHASES
+# PHASE 1: BACKEND SERVER & DATABASE
 # ============================================================================
 
-# ── PHASE 1: CEL-SHADING VISUALS ──────────────────────────────────────────
-
-Run-Phase -PhaseNum 1 -PhaseName "CEL-SHADING VISUALS" -PhasePrompt @"
-You are building a medieval conquest game. Here is the full project specification:
+Run-Phase -Num 1 -Name "BACKEND SERVER & DATABASE" -Prompt @"
+You are building a medieval conquest game. Here is the full specification:
 
 $MasterPrompt
 
-YOUR TASK RIGHT NOW: Implement PHASE 1 — VISUAL UPGRADE (Cel-Shading & Art Direction) ONLY.
+YOUR TASK: Implement PHASE 1 — BACKEND SERVER & DATABASE only.
 
-Read the existing codebase first. Understand the current structure. Then:
-1. Create src/shaders/toonShader.js with a custom toon/cel-shader material
-2. Create src/rendering/postProcessing.js with the EffectComposer pipeline
-3. Create src/utils/materialFactory.js as a helper to apply toon materials
-4. Implement outline rendering for that cel-shaded ink look
-5. Update existing game objects to use the new toon shader materials
-6. Set up the lighting for the toon look (single directional sun + warm ambient)
+Read the existing codebase first, especially package.json and vite.config.js.
 
-After implementation, run 'npm run build' to verify everything compiles.
-Do NOT implement any other phases yet. Only Phase 1.
+Do exactly these steps:
+1. mkdir -p server/src server/migrations
+2. Create server/package.json with type:module and deps: express, ws, better-sqlite3, jsonwebtoken, uuid, cors
+3. cd server && npm install
+4. Create server/src/database.js — SQLite schema exactly as specified (players, submissions, votes, changelog, monuments tables). Export all helper functions listed.
+5. Create server/src/auth.js — generatePlayerCode(), createToken(), verifyToken() exactly as specified
+6. Create server/src/gameState.js — connectedPlayers Map, chatHistory array, broadcast(), addPlayer(), removePlayer(), updatePosition(), addChatMessage()
+7. Create server/src/wordFilter.js — filterMessage(text) with basic word list
+8. Create server/src/server.js — Express on port 3001, CORS, all REST endpoints, WebSocket server, all message handling exactly as specified
+9. Add "server": "node server/src/server.js" to ROOT package.json scripts
+10. Update vite.config.js with proxy config for /api and /ws
+11. Verify: cd server && node src/server.js starts without errors, then kill it
+12. Verify: cd .. && npm run build passes
+
+Do NOT modify any src/ game files in this phase. Only create server/ and update package.json + vite.config.js.
 "@
 
-Verify-Build -PhaseNum 1
-
-# ── PHASE 2: BACKEND SERVER & DATABASE ─────────────────────────────────────
-
-Run-Phase -PhaseNum 2 -PhaseName "BACKEND SERVER & DATABASE" -PhasePrompt @"
-Continue building the medieval conquest game. Here is the full specification for reference:
-
-$MasterPrompt
-
-YOUR TASK RIGHT NOW: Implement PHASE 2 — BACKEND SERVER & DATABASE ONLY.
-
-1. Create the /server directory structure as specified
-2. Initialize server/package.json with dependencies (express, ws, better-sqlite3, jsonwebtoken, uuid, cors)
-3. Run 'cd server && npm install' to install server dependencies
-4. Create server/src/database.js with SQLite schema (players, submissions, votes, changelog, monuments tables)
-5. Create server/src/auth.js with player code generation and JWT auth
-6. Create server/src/submissions.js with feature request CRUD and voting
-7. Create server/src/changelog.js with version history management
-8. Create server/src/gameState.js for in-memory multiplayer state
-9. Create server/src/server.js as the main entry point (Express + WebSocket)
-10. Create server/migrations/001_initial.sql with the full schema
-11. Verify the server starts with 'cd server && node src/server.js' (then kill it)
-
-Do NOT modify the frontend code in this phase. Only build the server.
-Do NOT implement any other phases yet. Only Phase 2.
-"@
-
-Verify-Build -PhaseNum 2
-
-# ── PHASE 3: MULTIPLAYER CLIENT ────────────────────────────────────────────
-
-Run-Phase -PhaseNum 3 -PhaseName "MULTIPLAYER CLIENT INTEGRATION" -PhasePrompt @"
-Continue building the medieval conquest game. Here is the full specification for reference:
-
-$MasterPrompt
-
-YOUR TASK RIGHT NOW: Implement PHASE 3 — MULTIPLAYER CLIENT INTEGRATION ONLY.
-
-1. Create src/network/networkManager.js — WebSocket client singleton with auto-reconnect
-2. Create src/entities/remotePlayer.js — renders other players with toon shader, name labels, interpolation
-3. Create src/ui/loginScreen.js — simple HTML overlay for login (player code) and character creation
-4. Create src/player/playerState.js — local player data management with auto-save
-5. Wire the network manager into the main game loop (send position at 10hz, receive and render other players)
-6. Wire the login screen to show before the game starts
-
-Make sure it integrates cleanly with the existing game code and the Phase 1 visuals.
-Run 'npm run build' to verify. Do NOT implement other phases yet. Only Phase 3.
-"@
-
-Verify-Build -PhaseNum 3
-
-# ── PHASE 4: CHAT SYSTEM ──────────────────────────────────────────────────
-
-Run-Phase -PhaseNum 4 -PhaseName "CHAT SYSTEM" -PhasePrompt @"
-Continue building the medieval conquest game. Here is the full specification for reference:
-
-$MasterPrompt
-
-YOUR TASK RIGHT NOW: Implement PHASE 6 (CHAT SYSTEM) from the spec.
-
-1. Create src/ui/chatUI.js — persistent chat box in bottom-left, semi-transparent
-2. Add chat message handling to the network manager (send/receive chat WebSocket messages)
-3. Create server/src/wordFilter.js — basic profanity filter
-4. Add chat message broadcasting to the WebSocket server (with rate limiting: 1 msg per 2 sec, 200 char max)
-5. Add recent chat history (last 50 messages in server memory) sent to new joiners
-6. Wire Enter/T key to open chat input, Escape to close, disable movement while typing
-7. System messages in gold color for join/leave events
-
-Run 'npm run build' to verify. Do NOT implement other phases yet. Only the chat system.
-"@
-
-Verify-Build -PhaseNum 4
-
-# ── PHASE 5: PLAYER IDENTITY ──────────────────────────────────────────────
-
-Run-Phase -PhaseNum 5 -PhaseName "PLAYER IDENTITY & PROGRESSION" -PhasePrompt @"
-Continue building the medieval conquest game. Here is the full specification for reference:
-
-$MasterPrompt
-
-YOUR TASK RIGHT NOW: Implement PHASE 7 (PLAYER IDENTITY & PROGRESSION) from the spec.
-
-1. Create src/player/titleManager.js — title earning logic and display selection
-2. Create src/player/inventoryManager.js — inventory operations
-3. Create src/ui/characterMenu.js — press C to open stats/titles/inventory overlay
-4. Add the titles system (Founder, Veteran, Explorer, contribution-based titles)
-5. Add core stats tracking (Exploration, Building, Combat, Contribution)
-6. Add flexible inventory system (item_id + quantity, references worldDefinition)
-7. Wire titles to display under player names (both local and remote players)
-8. Add the 'is_founder' flag logic based on join date
-
-Run 'npm run build' to verify. Do NOT implement other phases yet. Only player identity.
-"@
-
-Verify-Build -PhaseNum 5
-
-# ── PHASE 6: TWO-LAYER WORLD ──────────────────────────────────────────────
-
-Run-Phase -PhaseNum 6 -PhaseName "TWO-LAYER WORLD ARCHITECTURE" -PhasePrompt @"
-Continue building the medieval conquest game. Here is the full specification for reference:
-
-$MasterPrompt
-
-YOUR TASK RIGHT NOW: Implement PHASE 4 (TWO-LAYER WORLD ARCHITECTURE) from the spec.
-
-1. Create src/world/worldDefinition.js with WORLD_VERSION, WORLD_TITLE, PROTECTED_ZONES, and worldConfig
-2. Create src/world/worldLoader.js that reads worldDefinition and spawns terrain/structures/NPCs
-3. Create src/world/protectedZones.js with zone boundary constants and collision checks
-4. Create src/player/personalKeep.js — personal keep logic with plot assignment
-5. Create src/player/keepRenderer.js — renders a keep from JSON personal_space data
-6. Create src/player/placementMode.js — build mode with ghost preview, click to place, right-click rotate
-7. Set up the residential district area in the world where personal keeps live
-8. Wire keep state to save/load from the player database via the API
-9. Allow visiting other players' keeps (fetch their personal_space and render it)
-
-All new meshes must use the toon shader from Phase 1.
-Run 'npm run build' to verify. Do NOT implement other phases yet. Only the two-layer architecture.
-"@
-
-Verify-Build -PhaseNum 6
-
-# ── PHASE 7: COLLABORATION SUITE ──────────────────────────────────────────
-
-Run-Phase -PhaseNum 7 -PhaseName "IN-GAME COLLABORATION SUITE" -PhasePrompt @"
-Continue building the medieval conquest game. Here is the full specification for reference:
-
-$MasterPrompt
-
-YOUR TASK RIGHT NOW: Implement PHASE 5 (IN-GAME COLLABORATION SUITE) from the spec.
-
-Build ALL of these as physical locations in the game world with interaction triggers and HTML overlay UIs:
-
-1. THE BUILDER'S HALL
-   - src/world/structures/buildersHall.js — stone workshop building near map center
-   - src/ui/buildersHallUI.js — submit ideas, view/vote on ideas, see build queue
-   - Connects to /api/submissions endpoints
-
-2. THE CHRONICLE
-   - src/world/structures/chronicle.js — stone monument/tower with carved walls
-   - src/ui/chronicleUI.js — scrollable version timeline with contributor credits
-   - Connects to /api/changelog endpoints
-
-3. THE TOWN SQUARE NOTICE BOARD
-   - src/world/structures/noticeBoard.js — wooden board with pinned scrolls
-   - src/ui/noticeBoardUI.js — top voted ideas + latest changes + who's online
-
-4. THE TESTING GROUNDS
-   - src/world/structures/testingGrounds.js — walled area at map edge with glowing portal
-
-5. PLAYER MONUMENTS
-   - src/world/structures/monument.js — generated from monuments table, lists active players per version
-
-All structures must use toon shader materials. Interaction via pressing E when nearby.
-Run 'npm run build' to verify. Do NOT implement other phases yet. Only the collaboration suite.
-"@
-
-Verify-Build -PhaseNum 7
-
-# ── PHASE 8: OVERNIGHT BUILD PIPELINE ─────────────────────────────────────
-
-Run-Phase -PhaseNum 8 -PhaseName "OVERNIGHT BUILD PIPELINE" -PhasePrompt @"
-Continue building the medieval conquest game. Here is the full specification for reference:
-
-$MasterPrompt
-
-YOUR TASK RIGHT NOW: Implement PHASE 8 (OVERNIGHT BUILD PIPELINE) from the spec.
-
-1. Create server/build-queue.json with the initial empty structure
-2. Create scripts/overnight-build.sh — the automation script that reads the queue,
-   implements features, bumps version, updates changelog, and deploys
-3. Create CLAUDE_CODE_BUILD_INSTRUCTIONS.md in the project root with all the rules
-   Claude Code must follow during overnight builds (protected zones, never delete items, etc.)
-4. Create src/version.js with the current VERSION export
-5. Create src/ui/whatsNewUI.js — splash screen shown when a new version is detected
-6. Create src/ui/hudUI.js — persistent HUD showing version number, minimap placeholder, health
-7. Wire version checking on login (compare local version with server changelog)
-8. Add the admin endpoints to the server if not already present:
-   POST /api/admin/approve/:id and POST /api/admin/changelog
-
-Run 'npm run build' to verify. This is the final phase.
-"@
-
-Verify-Build -PhaseNum 8
+Verify-Build -Num 1
 
 # ============================================================================
-# FINAL SUMMARY
+# PHASE 2: MULTIPLAYER CLIENT
+# ============================================================================
+
+Run-Phase -Num 2 -Name "MULTIPLAYER CLIENT" -Prompt @"
+Continue building the medieval conquest game. Full spec:
+
+$MasterPrompt
+
+YOUR TASK: Implement PHASE 2 — MULTIPLAYER CLIENT INTEGRATION only.
+
+The server from Phase 1 is complete. Now connect the Phaser game to it.
+
+Read these existing files carefully before making changes:
+- src/main.js (scene array order, Phaser config)
+- src/scenes/GameScene.js (create() and update() structure)
+- src/scenes/CharSelectScene.js (selectClass method)
+- src/scenes/MainMenuScene.js (how it transitions to next scene)
+- src/entities/Player.js (sprite creation, classData, facing, isMoving)
+- src/entities/CharacterClasses.js (CHARACTER_CLASSES object)
+- src/utils/ParchmentColors.js (UI_COLORS for styling)
+
+Do exactly:
+1. Create src/network/NetworkManager.js exactly as specified — singleton, WebSocket, position throttling at 10hz, remote player management, lerp interpolation
+2. Create src/entities/RemotePlayer.js exactly as specified — sprite with tint from CHARACTER_CLASSES[selectedClass].color, name label at y-20, lerp interpolation in update()
+3. Create src/scenes/LoginScene.js — new Phaser.Scene('LoginScene'), parchment background using UI_COLORS.PARCHMENT_BG, HTML overlay for text input, New Player and Returning Player flows, store playerData and authToken in registry
+4. In src/main.js: import LoginScene, add it to scene array after MainMenuScene and before CharSelectScene
+5. In src/scenes/MainMenuScene.js: change transition from CharSelectScene to LoginScene
+6. In src/scenes/CharSelectScene.js: in selectClass(), add fetch PATCH to save selected class to server using registry playerData and authToken
+7. In src/scenes/GameScene.js create(): after combatSystem creation (line ~74), add NetworkManager initialization using registry playerData/authToken
+8. In src/scenes/GameScene.js update(): after combatSystem.update (line ~139), add networkManager.update call
+9. Create src/player/PlayerState.js — auto-save every 30s, save on beforeunload
+
+Verify: npm run build passes. Do NOT create chat, character menu, or any other phase's features.
+"@
+
+Verify-Build -Num 2
+
+# ============================================================================
+# PHASE 3: CHAT SYSTEM
+# ============================================================================
+
+Run-Phase -Num 3 -Name "CHAT SYSTEM" -Prompt @"
+Continue building the medieval conquest game. Full spec:
+
+$MasterPrompt
+
+YOUR TASK: Implement PHASE 3 — CHAT SYSTEM only.
+
+Read these existing files:
+- src/scenes/GameScene.js (lines 100-106: inputPaused flag and pauseInput event system — USE THIS)
+- src/scenes/HUDScene.js (how UI elements are created and positioned)
+
+Create src/ui/ChatUI.js exactly as specified:
+- HTML div overlay, bottom-left corner, 350x200px
+- Background rgba(44,24,16,0.7), border rgba(139,107,74,0.5)
+- Georgia serif 12px, color #f4e4c1
+- Message list (last 20), scrollable
+- Press Enter or T to open input, Enter sends, Escape closes
+- While input focused: emit pauseInput(true) AND set scene.input.keyboard.enabled = false
+- On blur: emit pauseInput(false) AND re-enable keyboard
+- System messages in gold (#ffd700) for join/leave events
+- Wire to NetworkManager: sendChat() for outgoing, listen for chatMessage events for incoming
+- Instantiate in GameScene.create() after network setup
+
+Verify: npm run build passes.
+"@
+
+Verify-Build -Num 3
+
+# ============================================================================
+# PHASE 4: PLAYER IDENTITY
+# ============================================================================
+
+Run-Phase -Num 4 -Name "PLAYER IDENTITY & PROGRESSION" -Prompt @"
+Continue building the medieval conquest game. Full spec:
+
+$MasterPrompt
+
+YOUR TASK: Implement PHASE 4 — PLAYER IDENTITY & PROGRESSION only.
+
+Read these existing files:
+- src/scenes/HUDScene.js (TAB key handling pattern at lines 114-126 — copy this EXACT pattern for C key)
+- src/ui/InventoryPanel.js (toggle/open/close pattern — copy for CharacterMenu)
+- src/scenes/CharSelectScene.js (stat bar rendering pattern)
+
+Do exactly:
+1. Add TITLE_DEFINITIONS to src/constants.js
+2. Create src/player/TitleManager.js
+3. Create src/ui/CharacterMenu.js — toggle with C key, parchment styled, shows name/title/class/stats/join date/code
+4. In src/scenes/HUDScene.js:
+   a. Import CharacterMenu
+   b. In create(): instantiate this.characterMenu = new CharacterMenu(this, this.player)
+   c. Add C key: this.cKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.C)
+   d. In update(): add C key toggle following the EXACT same pattern as TAB (lines 317-326)
+   e. Add titleLabel below classLabel (line 77) showing player's active title
+5. In src/systems/CombatSystem.js: in performPlayerAttack() where enemy.health <= 0 (around line 135), emit 'enemyKilled' event on scene
+6. In PlayerState: listen for 'enemyKilled' and 'territoryCaptured' to increment stats
+
+Verify: npm run build passes.
+"@
+
+Verify-Build -Num 4
+
+# ============================================================================
+# PHASE 5: TWO-LAYER WORLD
+# ============================================================================
+
+Run-Phase -Num 5 -Name "TWO-LAYER WORLD & KEEPS" -Prompt @"
+Continue building the medieval conquest game. Full spec:
+
+$MasterPrompt
+
+YOUR TASK: Implement PHASE 5 — TWO-LAYER WORLD & PERSONAL KEEPS only.
+
+Read these existing files:
+- src/utils/SpriteFactory.js (generateVillageTextures at ~line 831 for the EXACT pattern to follow when generating keep item textures)
+- src/scenes/PreloadScene.js (SpriteFactory.generateAll is called here)
+- src/scenes/GameScene.js (full create() flow)
+- src/map/MapRenderer.js (_placeDetailSprites for how detail sprites are placed)
+
+Do exactly:
+1. Create src/world/WorldDefinition.js with WORLD_VERSION, WORLD_TITLE, PROTECTED_ZONES, KEEP_PLOTS, KEEP_ITEMS, WORLD_STRUCTURES (empty for now), TESTING_GROUNDS_FEATURES
+2. In SpriteFactory: add static generateKeepItemTextures(scene) method following the SAME pattern as generateVillageTextures — use scene.add.graphics(), draw pixel art, g.generateTexture(key, w, h), g.destroy()
+3. In SpriteFactory.generateAll(): add call to generateKeepItemTextures
+4. Create src/player/PersonalKeep.js, src/player/KeepRenderer.js, src/player/PlacementMode.js as specified
+5. In GameScene.create(): render PROTECTED_ZONES boundaries subtly, render any occupied keeps
+6. Add B key for placement mode in HUDScene (same pattern as TAB/C keys) — only active when inside own keep
+
+Verify: npm run build passes.
+"@
+
+Verify-Build -Num 5
+
+# ============================================================================
+# PHASE 6: COLLABORATION SUITE
+# ============================================================================
+
+Run-Phase -Num 6 -Name "COLLABORATION SUITE" -Prompt @"
+Continue building the medieval conquest game. Full spec:
+
+$MasterPrompt
+
+YOUR TASK: Implement PHASE 6 — IN-GAME COLLABORATION SUITE only.
+
+Read these existing files:
+- src/utils/SpriteFactory.js (generateVillageTextures for drawing pattern)
+- src/scenes/GameScene.js (_checkVillageProximity at line 222 for E-key interaction pattern)
+- src/world/WorldDefinition.js (WORLD_STRUCTURES array you need to populate)
+
+Do exactly:
+1. In SpriteFactory: add generateStructureTextures(scene) — create textures for builders_hall (64x64), chronicle (48x48), notice_board (32x32), portal (48x48), monument (48x48). Follow the EXACT same drawing pattern as village textures.
+2. In SpriteFactory.generateAll(): add call to generateStructureTextures
+3. Populate WORLD_STRUCTURES in WorldDefinition.js with positions near map center (tiles ~60-68)
+4. In GameScene.create(): iterate WORLD_STRUCTURES, place sprites + labels
+5. In GameScene.update(): add proximity check for structures following _checkVillageProximity pattern. When E pressed near a structure, open its UI.
+6. Create src/ui/BuildersHallUI.js — HTML overlay, submit/vote/view ideas, connects to /api/submissions
+7. Create src/ui/ChronicleUI.js — HTML overlay, scrollable version timeline, connects to /api/changelog
+8. Create src/ui/NoticeBoardUI.js — HTML overlay, quick glance summary
+
+All overlays: pause game input when open, close with Escape, parchment styling.
+
+Verify: npm run build passes.
+"@
+
+Verify-Build -Num 6
+
+# ============================================================================
+# PHASE 7: OVERNIGHT BUILD PIPELINE
+# ============================================================================
+
+Run-Phase -Num 7 -Name "BUILD PIPELINE" -Prompt @"
+Continue building the medieval conquest game. Full spec:
+
+$MasterPrompt
+
+YOUR TASK: Implement PHASE 8 — OVERNIGHT BUILD PIPELINE only.
+
+Do exactly:
+1. Create server/build-queue.json with empty approved_submissions array
+2. Create src/version.js: export const VERSION = '0.1.0'
+3. In HUDScene.create(): import VERSION, add version label at bottom-right corner (GAME_WIDTH-10, GAME_HEIGHT-10, origin 1,1, depth 100, color '#8b6b4a', 10px Georgia)
+4. Create src/ui/WhatsNewUI.js — on GameScene start, compare VERSION with /api/changelog/latest, show parchment popup if newer
+5. Create CLAUDE_CODE_BUILD_INSTRUCTIONS.md in project root with all rules as specified
+6. Create scripts/overnight-build.ps1 with the build automation logic
+
+Verify: npm run build passes.
+"@
+
+Verify-Build -Num 7
+
+# ============================================================================
+# DONE
 # ============================================================================
 
 Log ""
 Log "============================================" "Green"
-Log "  MEDIEVAL CONQUEST BUILD COMPLETE!" "Green"
+Log "  BUILD COMPLETE!" "Green"
 Log "============================================" "Green"
 Log ""
-Log "All 8 phases completed. Here's what to do next:"
+Log "To run:" "Cyan"
+Log "  Terminal 1: cd server && node src/server.js"
+Log "  Terminal 2: npm run dev"
 Log ""
-Log "  1. Start the backend server:"
-Log "     cd server; node src/server.js" "Cyan"
+Log "  Open the URL Vite shows in your browser."
+Log "  Create a player and explore!"
 Log ""
-Log "  2. In another terminal, start the dev server:"
-Log "     npm run dev" "Cyan"
-Log ""
-Log "  3. Open the game in your browser at the URL Vite shows"
-Log ""
-Log "  4. Create your first player account and explore!"
-Log ""
-Log "  5. Full build log saved to: $LogFile" "Cyan"
-Log ""
-Log "TIP: If anything looks off, you can ask Claude Code to fix it" "Yellow"
-Log "interactively by running 'claude' and describing the issue." "Yellow"
-Log ""
+Log "Build log: $LogFile" "Cyan"
