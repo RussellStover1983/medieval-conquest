@@ -9,8 +9,11 @@ import GameScene from './scenes/GameScene.js';
 import HUDScene from './scenes/HUDScene.js';
 import VillageScene from './scenes/VillageScene.js';
 
+// On mobile/iPad, prefer Canvas2D to avoid WebGL texture memory crashes
+const isMobile = navigator.maxTouchPoints > 0 || /iPad|iPhone|Android/i.test(navigator.userAgent);
+
 const config = {
-  type: Phaser.AUTO,
+  type: isMobile ? Phaser.CANVAS : Phaser.AUTO,
   parent: 'game-container',
   width: GAME_WIDTH,
   height: GAME_HEIGHT,
@@ -37,4 +40,14 @@ const config = {
   },
 };
 
-new Phaser.Game(config);
+const game = new Phaser.Game(config);
+
+// Handle WebGL context loss gracefully (reload instead of white screen)
+const canvas = game.canvas;
+if (canvas) {
+  canvas.addEventListener('webglcontextlost', (e) => {
+    e.preventDefault();
+    console.warn('[Medieval Conquest] WebGL context lost — reloading...');
+    setTimeout(() => window.location.reload(), 1000);
+  });
+}

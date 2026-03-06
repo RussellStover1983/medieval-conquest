@@ -15,6 +15,9 @@ const TERRAIN_NAMES = {
   [TERRAIN.RIVER]: 'river',
 };
 
+// Detect mobile for reduced detail (prevents WebGL memory crashes on iPad/phones)
+const IS_MOBILE = typeof navigator !== 'undefined' && (navigator.maxTouchPoints > 0 || /iPad|iPhone|Android/i.test(navigator.userAgent));
+
 export default class MapRenderer {
   constructor(scene) {
     this.scene = scene;
@@ -183,8 +186,10 @@ export default class MapRenderer {
   }
 
   _placeDetailSprites(terrain) {
-    for (let y = 0; y < MAP_HEIGHT; y++) {
-      for (let x = 0; x < MAP_WIDTH; x++) {
+    // On mobile, skip every other tile to reduce sprite count by 75%
+    const step = IS_MOBILE ? 2 : 1;
+    for (let y = 0; y < MAP_HEIGHT; y += step) {
+      for (let x = 0; x < MAP_WIDTH; x += step) {
         const t = terrain[y][x];
         const hash = (x * 7919 + y * 6271) % 100;
         const cx = x * TILE_SIZE + TILE_SIZE / 2;
@@ -286,8 +291,9 @@ export default class MapRenderer {
 
   _setupWaterOverlays() {
     this.waterSprites = [];
+    const waterStep = IS_MOBILE ? 8 : 4;
     for (let i = 0; i < this.waterPositions.length; i++) {
-      if (i % 4 !== 0) continue;
+      if (i % waterStep !== 0) continue;
       const wp = this.waterPositions[i];
       const px = wp.x * TILE_SIZE + TILE_SIZE / 2;
       const py = wp.y * TILE_SIZE + TILE_SIZE / 2;

@@ -14,7 +14,9 @@ export const PLAYER_BASE_SPEED = 160;
 
 export const TERRITORY_CAPTURE_THRESHOLD = 0.6; // 60% explored to capture
 
-export const CHUNK_SIZE = 32; // tiles per chunk (32×32 tiles = 1024×1024px)
+// Smaller chunks on mobile to avoid exceeding WebGL texture size limits (iPad Safari)
+const isMobile = typeof navigator !== 'undefined' && (navigator.maxTouchPoints > 0 || /iPad|iPhone|Android/i.test(navigator.userAgent));
+export const CHUNK_SIZE = isMobile ? 16 : 32; // 16 = 512×512px chunks (mobile-safe), 32 = 1024×1024px
 
 export const TERRAIN = {
   DEEP_WATER: 0,
