@@ -121,6 +121,20 @@ export default class CharSelectScene extends Phaser.Scene {
   selectClass(className) {
     this.registry.set('selectedClass', className);
 
+    // Save selected class to server if logged in
+    const token = this.registry.get('authToken');
+    const playerData = this.registry.get('playerData');
+    if (token && playerData) {
+      fetch(`/api/player/${playerData.id}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({ selected_class: className }),
+      }).catch(() => {});
+    }
+
     this.cameras.main.fadeOut(300, 44, 24, 16);
     this.cameras.main.once('camerafadeoutcomplete', () => {
       this.scene.start('GameScene');

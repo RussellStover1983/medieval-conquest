@@ -1,10 +1,5 @@
 {
   "permissions": {
-    "deny": [
-      "Bash(rm -rf /*)",
-      "Bash(git push --force *)",
-      "Read(**/.env)"
-    ],
     "allow": [
       "Bash(git *)",
       "Bash(python *)",
@@ -50,7 +45,18 @@
       "Bash(MSYS_NO_PATHCONV=1 *)",
       "Bash(FILTER_BRANCH_SQUELCH_WARNING=1 *)",
       "WebSearch",
-      "WebFetch"
+      "WebFetch",
+      "Bash(rm:*)",
+      "Bash(npx kill-port:*)",
+      "Bash(netstat -ano)",
+      "Bash(taskkill:*)",
+      "Bash(powershell:*)",
+      "Bash(test:*)"
+    ],
+    "deny": [
+      "Bash(rm -rf /*)",
+      "Bash(git push --force *)",
+      "Read(**/.env)"
     ]
   }
 }

@@ -14,6 +14,8 @@ export const PLAYER_BASE_SPEED = 160;
 
 export const TERRITORY_CAPTURE_THRESHOLD = 0.6; // 60% explored to capture
 
+export const CHUNK_SIZE = 32; // tiles per chunk (32×32 tiles = 1024×1024px)
+
 export const TERRAIN = {
   DEEP_WATER: 0,
   WATER: 1,
@@ -26,6 +28,20 @@ export const TERRAIN = {
   VILLAGE: 8,
   ROAD: 9,
   RIVER: 10,
+};
+
+export const TERRAIN_PRIORITY = {
+  [TERRAIN.DEEP_WATER]: 0,
+  [TERRAIN.WATER]: 1,
+  [TERRAIN.RIVER]: 2,
+  [TERRAIN.SAND]: 3,
+  [TERRAIN.ROAD]: 4,
+  [TERRAIN.PLAINS]: 5,
+  [TERRAIN.HILLS]: 6,
+  [TERRAIN.FOREST]: 7,
+  [TERRAIN.MOUNTAINS]: 8,
+  [TERRAIN.SNOW]: 9,
+  [TERRAIN.VILLAGE]: 10,
 };
 
 export const RESOURCES = {
@@ -292,6 +308,12 @@ export const CAMP_SETTINGS = {
   totalCamps: 20,
   minDistFromVillage: 15,
   minDistBetween: 10,
+};
+
+export const TITLE_DEFINITIONS = {
+  founder: { name: 'Founder', description: 'Joined before v1.0', auto: true },
+  veteran: { name: 'Veteran', description: 'Active 30+ days', auto: true },
+  explorer: { name: 'Explorer', description: 'Visited all regions', auto: true },
 };
 
 export const BUILDING_TYPES = {

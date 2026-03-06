@@ -1,10 +1,24 @@
-import { TILE_SIZE, MAP_WIDTH, MAP_HEIGHT, TERRAIN } from '../constants.js';
+import { TILE_SIZE, MAP_WIDTH, MAP_HEIGHT, TERRAIN, CHUNK_SIZE, TERRAIN_PRIORITY } from '../constants.js';
 import { TERRAIN_COLORS, TERRAIN_PALETTE, RESOURCE_COLORS } from '../utils/ParchmentColors.js';
+
+const TERRAIN_NAMES = {
+  [TERRAIN.DEEP_WATER]: 'deep_water',
+  [TERRAIN.WATER]: 'water',
+  [TERRAIN.SAND]: 'sand',
+  [TERRAIN.PLAINS]: 'plains',
+  [TERRAIN.FOREST]: 'forest',
+  [TERRAIN.HILLS]: 'hills',
+  [TERRAIN.MOUNTAINS]: 'mountains',
+  [TERRAIN.SNOW]: 'snow',
+  [TERRAIN.VILLAGE]: 'village',
+  [TERRAIN.ROAD]: 'road',
+  [TERRAIN.RIVER]: 'river',
+};
 
 export default class MapRenderer {
   constructor(scene) {
     this.scene = scene;
-    this.terrainGraphics = null;
+    this.chunkRTs = [];
     this.resourceSprites = [];
     this.terrain = null;
     this.waterSprites = [];
@@ -13,31 +27,59 @@ export default class MapRenderer {
 
   renderTerrain(terrain) {
     this.terrain = terrain;
-
-    // Draw terrain tiles with a persistent Graphics object using palette variation
-    this.terrainGraphics = this.scene.add.graphics();
-    this.terrainGraphics.setDepth(0);
     this.waterPositions = [];
 
-    for (let y = 0; y < MAP_HEIGHT; y++) {
-      for (let x = 0; x < MAP_WIDTH; x++) {
+    const chunksX = Math.ceil(MAP_WIDTH / CHUNK_SIZE);
+    const chunksY = Math.ceil(MAP_HEIGHT / CHUNK_SIZE);
+    const chunkPx = CHUNK_SIZE * TILE_SIZE;
+
+    // Create a 1x1 dummy texture for the temp sprite, then swap textures during stamping
+    if (!this.scene.textures.exists('_rt_dummy')) {
+      const dg = this.scene.add.graphics();
+      dg.fillStyle(0x000000, 0);
+      dg.fillRect(0, 0, 1, 1);
+      dg.generateTexture('_rt_dummy', 1, 1);
+      dg.destroy();
+    }
+    const tempSprite = this.scene.add.sprite(0, 0, '_rt_dummy').setVisible(false).setOrigin(0, 0);
+
+    // Build each chunk as a RenderTexture
+    for (let cy = 0; cy < chunksY; cy++) {
+      for (let cx = 0; cx < chunksX; cx++) {
+        const rt = this.scene.add.renderTexture(
+          cx * chunkPx,
+          cy * chunkPx,
+          chunkPx,
+          chunkPx
+        );
+        rt.setOrigin(0, 0);
+        rt.setDepth(0);
+
+        this._stampChunk(rt, terrain, cx, cy, tempSprite);
+        this.chunkRTs.push(rt);
+      }
+    }
+
+    tempSprite.destroy();
+
+    // Add terrain detail sprites
+    this._placeDetailSprites(terrain);
+
+    // Set up water animation overlay sprites (sparse, not every tile)
+    this._setupWaterOverlays();
+  }
+
+  _stampChunk(rt, terrain, chunkX, chunkY, tempSprite) {
+    const startX = chunkX * CHUNK_SIZE;
+    const startY = chunkY * CHUNK_SIZE;
+    const endX = Math.min(startX + CHUNK_SIZE, MAP_WIDTH);
+    const endY = Math.min(startY + CHUNK_SIZE, MAP_HEIGHT);
+
+    // Pass 1: Stamp base textured tiles
+    for (let y = startY; y < endY; y++) {
+      for (let x = startX; x < endX; x++) {
         const terrainType = terrain[y][x];
-        const pal = TERRAIN_PALETTE[terrainType];
-
-        // Hash-based color variation per tile
-        const hash = (x * 7919 + y * 6271) % 100;
-        let color;
-        if (pal) {
-          if (hash < 25) color = pal.dark;
-          else if (hash < 60) color = pal.base;
-          else if (hash < 85) color = pal.light;
-          else color = pal.detail;
-        } else {
-          color = TERRAIN_COLORS[terrainType] || 0x8faa6b;
-        }
-
-        this.terrainGraphics.fillStyle(color, 1);
-        this.terrainGraphics.fillRect(x * TILE_SIZE, y * TILE_SIZE, TILE_SIZE, TILE_SIZE);
+        const name = TERRAIN_NAMES[terrainType];
 
         // Track water positions for animation
         const isWater = (terrainType === TERRAIN.WATER ||
@@ -46,16 +88,98 @@ export default class MapRenderer {
         if (isWater) {
           this.waterPositions.push({ x, y, type: terrainType });
         }
+
+        // Pick variant using deterministic hash
+        const variant = (x * 7919 + y * 6271) % 4;
+        const key = `terrain_${name}_${variant}`;
+
+        if (!this.scene.textures.exists(key)) continue;
+
+        // Position within the RenderTexture (local coords)
+        const lx = (x - startX) * TILE_SIZE;
+        const ly = (y - startY) * TILE_SIZE;
+
+        tempSprite.setTexture(key);
+        tempSprite.setPosition(lx, ly);
+        rt.draw(tempSprite);
       }
     }
 
-    // Add terrain detail sprites
-    this._placeDetailSprites(terrain);
+    // Pass 2: Stamp transition overlays
+    for (let y = startY; y < endY; y++) {
+      for (let x = startX; x < endX; x++) {
+        const terrainType = terrain[y][x];
+        const myPriority = TERRAIN_PRIORITY[terrainType];
+        if (myPriority === undefined) continue;
 
-    // Set up water animation overlay sprites (sparse, not every tile)
-    this._setupWaterOverlays();
+        const lx = (x - startX) * TILE_SIZE;
+        const ly = (y - startY) * TILE_SIZE;
 
-    return this.terrainGraphics;
+        // Check 4 cardinal neighbors
+        const neighbors = [
+          { dx: 0, dy: -1, dir: 'n' },
+          { dx: 0, dy: 1,  dir: 's' },
+          { dx: -1, dy: 0, dir: 'w' },
+          { dx: 1, dy: 0,  dir: 'e' },
+        ];
+
+        for (const { dx, dy, dir } of neighbors) {
+          const nx = x + dx;
+          const ny = y + dy;
+          if (nx < 0 || nx >= MAP_WIDTH || ny < 0 || ny >= MAP_HEIGHT) continue;
+
+          const neighborType = terrain[ny][nx];
+          const neighborPriority = TERRAIN_PRIORITY[neighborType];
+          if (neighborPriority === undefined) continue;
+
+          // If neighbor has higher priority, stamp its edge overlay onto this tile
+          if (neighborPriority > myPriority) {
+            const neighborName = TERRAIN_NAMES[neighborType];
+            const transKey = `transition_${neighborName}_${dir}`;
+            if (!this.scene.textures.exists(transKey)) continue;
+            tempSprite.setTexture(transKey);
+            tempSprite.setPosition(lx, ly);
+            rt.draw(tempSprite);
+          }
+        }
+      }
+    }
+
+    // Pass 3: Elevation drop shadows (higher terrain casts shadow south/east)
+    const chunkPx = CHUNK_SIZE * TILE_SIZE;
+    for (let y = startY; y < endY; y++) {
+      for (let x = startX; x < endX; x++) {
+        const terrainType = terrain[y][x];
+        const myPriority = TERRAIN_PRIORITY[terrainType];
+        if (myPriority === undefined) continue;
+
+        const shadowDirs = [
+          { dx: 0, dy: 1, key: 'shadow_n' },
+          { dx: 1, dy: 0, key: 'shadow_w' },
+        ];
+
+        for (const { dx, dy, key } of shadowDirs) {
+          const nx = x + dx;
+          const ny = y + dy;
+          if (nx < 0 || nx >= MAP_WIDTH || ny < 0 || ny >= MAP_HEIGHT) continue;
+
+          const neighborType = terrain[ny][nx];
+          const neighborPriority = TERRAIN_PRIORITY[neighborType];
+          if (neighborPriority === undefined) continue;
+
+          if (myPriority - neighborPriority >= 2) {
+            const nlx = (nx - startX) * TILE_SIZE;
+            const nly = (ny - startY) * TILE_SIZE;
+
+            if (nlx < 0 || nlx >= chunkPx || nly < 0 || nly >= chunkPx) continue;
+            if (!this.scene.textures.exists(key)) continue;
+            tempSprite.setTexture(key);
+            tempSprite.setPosition(nlx, nly);
+            rt.draw(tempSprite);
+          }
+        }
+      }
+    }
   }
 
   _placeDetailSprites(terrain) {
@@ -71,7 +195,6 @@ export default class MapRenderer {
         const oy = ((x * 2137 + y * 4519) % 11) - 5;
 
         if (t === TERRAIN.FOREST) {
-          // ~40% trees/pines/bushes
           if (hash < 15) {
             this._addDetail(cx + ox, cy + oy, 'detail_tree', 0.8);
           } else if (hash < 27) {
@@ -79,14 +202,12 @@ export default class MapRenderer {
           } else if (hash < 40) {
             this._addDetail(cx + ox, cy + oy, 'detail_bush', 0.7);
           }
-          // ~30% additional grass tufts
           if (hash >= 40 && hash < 70) {
             const gox = ((x * 4871 + y * 2311) % 13) - 6;
             const goy = ((x * 1193 + y * 5417) % 13) - 6;
             this._addDetail(cx + gox, cy + goy, 'detail_grass', 0.6);
           }
         } else if (t === TERRAIN.MOUNTAINS) {
-          // ~30% peaks + rocks
           if (hash < 10) {
             this._addDetail(cx + ox, cy + oy, 'detail_mountain', 0.7);
           } else if (hash < 20) {
@@ -95,7 +216,6 @@ export default class MapRenderer {
             this._addDetail(cx + ox, cy + oy, 'detail_rock', 0.7);
           }
         } else if (t === TERRAIN.PLAINS) {
-          // ~25% grass, 5% flowers, 3% rocks
           if (hash < 25) {
             this._addDetail(cx + ox, cy + oy, 'detail_grass', 0.65);
           } else if (hash < 30) {
@@ -105,7 +225,6 @@ export default class MapRenderer {
             this._addDetail(cx + ox, cy + oy, 'detail_rock', 0.6);
           }
         } else if (t === TERRAIN.HILLS) {
-          // ~30% rocks + grass
           if (hash < 12) {
             this._addDetail(cx + ox, cy + oy, 'detail_rock', 0.7);
           } else if (hash < 20) {
@@ -114,12 +233,10 @@ export default class MapRenderer {
             this._addDetail(cx + ox, cy + oy, 'detail_grass', 0.6);
           }
         } else if (t === TERRAIN.SAND) {
-          // 6% small rocks
           if (hash < 6) {
             this._addDetail(cx + ox, cy + oy, 'detail_rock', 0.5);
           }
         } else if (t === TERRAIN.VILLAGE) {
-          // ~35% (houses, rocks, flowers)
           if (hash < 12) {
             this._addDetail(cx + ox, cy + oy, 'detail_house', 0.8);
           } else if (hash < 20) {
@@ -131,13 +248,11 @@ export default class MapRenderer {
             this._addDetail(cx + ox, cy + oy, 'detail_grass', 0.6);
           }
         } else if (t === TERRAIN.SNOW) {
-          // Sparse rocks
           if (hash < 5) {
             this._addDetail(cx + ox, cy + oy, 'detail_rock', 0.5);
           }
         }
 
-        // Water edge cattails: if this is water and adjacent to land
         const isWater = (t === TERRAIN.WATER || t === TERRAIN.RIVER);
         if (isWater && hash < 12) {
           if (this._hasLandNeighbor(terrain, x, y)) {
@@ -169,10 +284,8 @@ export default class MapRenderer {
     sprite.setAlpha(alpha);
   }
 
-  // Water animation: create sparse overlay sprites on water tiles
   _setupWaterOverlays() {
     this.waterSprites = [];
-    // Only animate every 4th water tile to keep sprite count low
     for (let i = 0; i < this.waterPositions.length; i++) {
       if (i % 4 !== 0) continue;
       const wp = this.waterPositions[i];
@@ -182,12 +295,10 @@ export default class MapRenderer {
       const pal = TERRAIN_PALETTE[wp.type];
       if (!pal) continue;
 
-      // Create a small ripple highlight line
       const ripple = this.scene.add.rectangle(px, py, TILE_SIZE - 4, 2, pal.light, 0.3);
       ripple.setDepth(0.5);
       this.waterSprites.push(ripple);
 
-      // Gentle drift animation
       this.scene.tweens.add({
         targets: ripple,
         y: py + 6,
@@ -210,17 +321,14 @@ export default class MapRenderer {
       const y = res.y * TILE_SIZE + TILE_SIZE / 2;
       const textureKey = `resource_${res.type}`;
 
-      // Gem sprite
       const gem = this.scene.add.sprite(x, y, textureKey);
       gem.setDepth(5);
       gem.setData('resourceData', res);
 
-      // Glow halo
       const color = RESOURCE_COLORS[res.type] || 0xffffff;
       const glow = this.scene.add.circle(x, y, 8, color, 0.25);
       glow.setDepth(4);
 
-      // Gentle bob animation
       this.scene.tweens.add({
         targets: gem,
         y: y - 3,
@@ -230,7 +338,6 @@ export default class MapRenderer {
         ease: 'Sine.easeInOut',
       });
 
-      // Pulse glow
       this.scene.tweens.add({
         targets: glow,
         scaleX: 1.3,
@@ -248,7 +355,6 @@ export default class MapRenderer {
   }
 
   removeResource(resourceSprite) {
-    // Pickup animation
     this.scene.tweens.add({
       targets: [resourceSprite.circle, resourceSprite.glow],
       scaleX: 2,

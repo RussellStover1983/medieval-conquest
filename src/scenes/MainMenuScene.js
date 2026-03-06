@@ -45,7 +45,7 @@ export default class MainMenuScene extends Phaser.Scene {
     this.createButton(GAME_WIDTH / 2, 400, 'Begin Adventure', () => {
       this.cameras.main.fadeOut(300, 44, 24, 16);
       this.cameras.main.once('camerafadeoutcomplete', () => {
-        this.scene.start('CharSelectScene');
+        this.scene.start('LoginScene');
       });
     });
 

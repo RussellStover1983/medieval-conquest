@@ -133,6 +133,7 @@ export default class CombatSystem {
           const drop = enemy.getDrops();
           this.player.collectResource(drop.type, drop.value);
           this.scene.events.emit('resourceCollected', drop.type, drop.value);
+          this.scene.events.emit('enemyKilled', enemy);
         }
       }
     }

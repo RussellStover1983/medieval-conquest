@@ -10,6 +10,8 @@ import AttackButton from '../ui/AttackButton.js';
 import Hotbar from '../ui/Hotbar.js';
 import InventoryPanel from '../ui/InventoryPanel.js';
 import BuildMenu from '../ui/BuildMenu.js';
+import CharacterMenu from '../ui/CharacterMenu.js';
+import { VERSION } from '../version.js';
 
 export default class HUDScene extends Phaser.Scene {
   constructor() {
@@ -79,7 +81,7 @@ export default class HUDScene extends Phaser.Scene {
     this.territoryProgress.setDepth(100);
 
     // Class name display (moved above hotbar)
-    this.classLabel = this.add.text(16, GAME_HEIGHT - 70, this.player.className, {
+    this.classLabel = this.add.text(16, GAME_HEIGHT - 82, this.player.className, {
       fontSize: '12px',
       fontFamily: 'Georgia, serif',
       color: '#8b6b4a',
@@ -87,6 +89,17 @@ export default class HUDScene extends Phaser.Scene {
     this.classLabel.setOrigin(0, 1);
     this.classLabel.setScrollFactor(0);
     this.classLabel.setDepth(100);
+
+    // Title label (below class label)
+    this.titleLabel = this.add.text(16, GAME_HEIGHT - 70, '', {
+      fontSize: '11px',
+      fontFamily: 'Georgia, serif',
+      color: '#ffd700',
+      fontStyle: 'italic',
+    });
+    this.titleLabel.setOrigin(0, 1);
+    this.titleLabel.setScrollFactor(0);
+    this.titleLabel.setDepth(100);
 
     // Weapon label (moved above hotbar)
     this.weaponLabel = this.add.text(16, GAME_HEIGHT - 56, 'Fists', {
@@ -114,6 +127,11 @@ export default class HUDScene extends Phaser.Scene {
       this.hotbar.refresh();
       if (this.inventoryPanel.isOpen) this.inventoryPanel.refresh();
     };
+
+    // Character menu (C key to toggle)
+    this.characterMenu = new CharacterMenu(this, this.player);
+    this.cKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.C);
+    this.cKeyJustPressed = false;
 
     // Build menu (B key to toggle)
     this.buildMenu = new BuildMenu(this, this.player, this.buildingSystem);
@@ -211,6 +229,15 @@ export default class HUDScene extends Phaser.Scene {
       this.villagePrompt.setVisible(false);
     });
 
+    gameScene.events.on('nearStructure', (struct) => {
+      this.villagePrompt.setText(`Press E to Enter ${struct.label}`);
+      this.villagePrompt.setVisible(true);
+    });
+
+    gameScene.events.on('leftStructure', () => {
+      this.villagePrompt.setVisible(false);
+    });
+
     // Village mode events (from VillageScene via HUDScene events)
     this.events.on('enterVillage', (villageName) => {
       this.inVillageMode = true;
@@ -236,6 +263,11 @@ export default class HUDScene extends Phaser.Scene {
     gameScene.events.on('playerRespawned', () => {
       this.hideDeathOverlay();
     });
+
+    // Version label
+    this.versionLabel = this.add.text(GAME_WIDTH - 10, GAME_HEIGHT - 10, `v${VERSION}`, {
+      fontSize: '10px', fontFamily: 'Georgia, serif', color: '#8b6b4a',
+    }).setOrigin(1, 1).setScrollFactor(0).setDepth(100);
 
     // Initial view state
     this.updateViewState();
@@ -326,6 +358,17 @@ export default class HUDScene extends Phaser.Scene {
     // Update weapon display
     const wpn = WEAPONS[this.player.weapon] || WEAPONS.none;
     this.weaponLabel.setText(wpn.name);
+
+    // C key: toggle character menu
+    const cDown = this.cKey.isDown;
+    if (cDown && !this.cKeyJustPressed) {
+      this.cKeyJustPressed = true;
+      this.characterMenu.toggle();
+      const gameScene = this.scene.get('GameScene');
+      gameScene.events.emit('pauseInput', this.characterMenu.isOpen);
+    } else if (!cDown) {
+      this.cKeyJustPressed = false;
+    }
 
     // B key: toggle build menu
     const bDown = this.bKey.isDown;

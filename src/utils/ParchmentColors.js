@@ -16,17 +16,17 @@ export const TERRAIN_COLORS = {
 };
 
 export const TERRAIN_PALETTE = {
-  [TERRAIN.DEEP_WATER]: { base: 0x2b4570, light: 0x3b5580, dark: 0x1b3560, detail: 0x213d65 },
-  [TERRAIN.WATER]:      { base: 0x3d6b8e, light: 0x4d7b9e, dark: 0x2d5b7e, detail: 0x357393 },
-  [TERRAIN.SAND]:       { base: 0xd4bc8b, light: 0xe0c89a, dark: 0xc8b07c, detail: 0xbfa870 },
-  [TERRAIN.PLAINS]:     { base: 0x8faa6b, light: 0x9fba7b, dark: 0x7f9a5b, detail: 0x87a264 },
-  [TERRAIN.FOREST]:     { base: 0x4a6741, light: 0x5a7751, dark: 0x3a5731, detail: 0x3e5f38 },
-  [TERRAIN.HILLS]:      { base: 0x8b7d5e, light: 0x9b8d6e, dark: 0x7b6d4e, detail: 0x847656 },
-  [TERRAIN.MOUNTAINS]:  { base: 0x6b6157, light: 0x7b7167, dark: 0x5b5147, detail: 0x635a50 },
-  [TERRAIN.SNOW]:       { base: 0xc8c0b0, light: 0xd8d0c0, dark: 0xb8b0a0, detail: 0xd0c8b8 },
-  [TERRAIN.VILLAGE]:    { base: 0xb08050, light: 0xc09060, dark: 0xa07040, detail: 0xa87848 },
-  [TERRAIN.ROAD]:       { base: 0x9e8e6e, light: 0xae9e7e, dark: 0x8e7e5e, detail: 0x968666 },
-  [TERRAIN.RIVER]:      { base: 0x4a7fa5, light: 0x5a8fb5, dark: 0x3a6f95, detail: 0x4287ad },
+  [TERRAIN.DEEP_WATER]: { base: 0x2b4570, light: 0x3d5985, dark: 0x182e5e, detail: 0x213d65, accent1: 0x1a3055, accent2: 0x324d78 },
+  [TERRAIN.WATER]:      { base: 0x3d6b8e, light: 0x4f7d9a, dark: 0x2a5580, detail: 0x357393, accent1: 0x5588aa, accent2: 0x2a5570 },
+  [TERRAIN.SAND]:       { base: 0xd4bc8b, light: 0xe4cc96, dark: 0xbaa078, detail: 0xbfa870, accent1: 0xc9a86a, accent2: 0x9e8860 },
+  [TERRAIN.PLAINS]:     { base: 0x8faa6b, light: 0xa8c07a, dark: 0x6e8e58, detail: 0x87a264, accent1: 0x6b9948, accent2: 0x7a8855 },
+  [TERRAIN.FOREST]:     { base: 0x4a6741, light: 0x5e7d4e, dark: 0x2e4a35, detail: 0x3e5f38, accent1: 0x556b3a, accent2: 0x2e4428 },
+  [TERRAIN.HILLS]:      { base: 0x8b7d5e, light: 0xa49470, dark: 0x6a604e, detail: 0x847656, accent1: 0x6e6040, accent2: 0x7a8858 },
+  [TERRAIN.MOUNTAINS]:  { base: 0x6b6157, light: 0x847a6e, dark: 0x4e4850, detail: 0x635a50, accent1: 0x4e4840, accent2: 0x8a8078 },
+  [TERRAIN.SNOW]:       { base: 0xc8c0b0, light: 0xe0d8c4, dark: 0xa0a8b0, detail: 0xd0c8b8, accent1: 0xa8b8c8, accent2: 0xe0dcd4 },
+  [TERRAIN.VILLAGE]:    { base: 0xb08050, light: 0xc89860, dark: 0x886248, detail: 0xa87848, accent1: 0x8a6838, accent2: 0xc49868 },
+  [TERRAIN.ROAD]:       { base: 0x9e8e6e, light: 0xb8a67c, dark: 0x7a7060, detail: 0x968666, accent1: 0x786850, accent2: 0x887858 },
+  [TERRAIN.RIVER]:      { base: 0x4a7fa5, light: 0x5c92b8, dark: 0x326090, detail: 0x4287ad, accent1: 0x3a6888, accent2: 0x5a95bb },
 };
 
 export const RESOURCE_COLORS = {

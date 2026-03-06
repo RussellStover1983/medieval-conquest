@@ -3,6 +3,7 @@ import { GAME_WIDTH, GAME_HEIGHT } from './constants.js';
 import PreloadScene from './scenes/PreloadScene.js';
 import BootScene from './scenes/BootScene.js';
 import MainMenuScene from './scenes/MainMenuScene.js';
+import LoginScene from './scenes/LoginScene.js';
 import CharSelectScene from './scenes/CharSelectScene.js';
 import GameScene from './scenes/GameScene.js';
 import HUDScene from './scenes/HUDScene.js';
@@ -27,7 +28,7 @@ const config = {
   input: {
     activePointers: 3,
   },
-  scene: [PreloadScene, BootScene, MainMenuScene, CharSelectScene, GameScene, HUDScene, VillageScene],
+  scene: [PreloadScene, BootScene, MainMenuScene, LoginScene, CharSelectScene, GameScene, HUDScene, VillageScene],
   backgroundColor: '#2c1810',
   render: {
     pixelArt: true,

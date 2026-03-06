@@ -11,6 +11,15 @@ import EnemySpawner from '../systems/EnemySpawner.js';
 import CombatSystem from '../systems/CombatSystem.js';
 import ParticleManager from '../systems/ParticleManager.js';
 import BuildingSystem from '../systems/BuildingSystem.js';
+import NetworkManager from '../network/NetworkManager.js';
+import PlayerState from '../player/PlayerState.js';
+import ChatUI from '../ui/ChatUI.js';
+import KeepRenderer from '../player/KeepRenderer.js';
+import { PROTECTED_ZONES, WORLD_STRUCTURES } from '../world/WorldDefinition.js';
+import BuildersHallUI from '../ui/BuildersHallUI.js';
+import ChronicleUI from '../ui/ChronicleUI.js';
+import NoticeBoardUI from '../ui/NoticeBoardUI.js';
+import WhatsNewUI from '../ui/WhatsNewUI.js';
 import { tileToWorld, worldToTile } from '../utils/MathHelpers.js';
 
 export default class GameScene extends Phaser.Scene {
@@ -76,6 +85,66 @@ export default class GameScene extends Phaser.Scene {
 
       // Building system
       this.buildingSystem = new BuildingSystem(this, this.player, this.mapData.terrain, this.territoryManager);
+
+      // Multiplayer (only if logged in)
+      this.networkManager = null;
+      const playerData = this.registry.get('playerData');
+      const authToken = this.registry.get('authToken');
+      if (playerData && authToken) {
+        this.networkManager = new NetworkManager(this);
+        NetworkManager.setInstance(this.networkManager);
+        this.networkManager.connect(playerData.id, authToken);
+
+        // Player state persistence
+        this.playerState = new PlayerState(this);
+        PlayerState.setInstance(this.playerState);
+        this.playerState.init(playerData.id, authToken);
+
+        // Chat UI
+        this.chatUI = new ChatUI(this.scene.get('HUDScene'));
+      }
+
+      // Keep renderer and residential district boundaries
+      this.keepRenderer = new KeepRenderer(this);
+      this.keepRenderer.renderPlotBoundaries();
+
+      // Render protected zone boundaries
+      const zoneGraphics = this.add.graphics();
+      zoneGraphics.lineStyle(2, 0x8b6b4a, 0.2);
+      for (const zone of PROTECTED_ZONES) {
+        zoneGraphics.strokeRect(
+          zone.x * TILE_SIZE, zone.y * TILE_SIZE,
+          zone.width * TILE_SIZE, zone.height * TILE_SIZE
+        );
+      }
+      zoneGraphics.setDepth(3);
+
+      // Place world structures
+      this.structureUIs = {};
+      for (const struct of WORLD_STRUCTURES) {
+        const wx = struct.tileX * TILE_SIZE + TILE_SIZE / 2;
+        const wy = struct.tileY * TILE_SIZE + TILE_SIZE / 2;
+        const textureKey = `structure_${struct.type}`;
+        if (this.textures.exists(textureKey)) {
+          const sprite = this.add.sprite(wx, wy, textureKey);
+          sprite.setDepth(5);
+        }
+        this.add.text(wx, wy - 40, struct.label, {
+          fontSize: '10px', fontFamily: 'Georgia, serif',
+          color: '#f4e4c1', stroke: '#2c1810', strokeThickness: 2
+        }).setOrigin(0.5).setDepth(11);
+      }
+
+      // Structure UIs
+      this.buildersHallUI = new BuildersHallUI(this);
+      this.chronicleUI = new ChronicleUI(this);
+      this.noticeBoardUI = new NoticeBoardUI(this);
+      this.nearStructure = null;
+      this.structurePrompt = null;
+
+      // What's New popup
+      const whatsNew = new WhatsNewUI(this);
+      whatsNew.checkAndShow();
 
       // Launch HUD overlay scene
       this.scene.launch('HUDScene', {
@@ -147,6 +216,11 @@ export default class GameScene extends Phaser.Scene {
         this.buildingSystem.update(dt);
       }
 
+      // Update multiplayer
+      if (this.networkManager) {
+        this.networkManager.update(this.game.loop.delta);
+      }
+
       // Track territory discovery
       const tilePos = this.player.getTilePosition();
       if (tilePos.x !== this.lastTileX || tilePos.y !== this.lastTileY) {
@@ -174,6 +248,9 @@ export default class GameScene extends Phaser.Scene {
 
         // Check village proximity
         this._checkVillageProximity(tilePos);
+
+        // Check structure proximity
+        this._checkStructureProximity(tilePos);
       }
 
       // E key: building placement takes priority over village entry
@@ -186,6 +263,8 @@ export default class GameScene extends Phaser.Scene {
             if (placed) {
               this.events.emit('buildingPlaced');
             }
+          } else if (this.nearStructure) {
+            this._openStructureUI(this.nearStructure);
           } else if (this.nearVillage) {
             this._enterVillage(this.nearVillage);
           }
@@ -249,6 +328,40 @@ export default class GameScene extends Phaser.Scene {
     } else if (!found && this.nearVillage) {
       this.nearVillage = null;
       this.events.emit('leftVillage');
+    }
+  }
+
+  _checkStructureProximity(tilePos) {
+    let found = null;
+    for (const struct of WORLD_STRUCTURES) {
+      const dx = struct.tileX - tilePos.x;
+      const dy = struct.tileY - tilePos.y;
+      if (Math.sqrt(dx * dx + dy * dy) < 1.5) {
+        found = struct;
+        break;
+      }
+    }
+
+    if (found && !this.nearStructure) {
+      this.nearStructure = found;
+      this.events.emit('nearStructure', found);
+    } else if (!found && this.nearStructure) {
+      this.nearStructure = null;
+      this.events.emit('leftStructure');
+    }
+  }
+
+  _openStructureUI(struct) {
+    switch (struct.type) {
+      case 'builders_hall':
+        this.buildersHallUI.open();
+        break;
+      case 'chronicle':
+        this.chronicleUI.open();
+        break;
+      case 'notice_board':
+        this.noticeBoardUI.open();
+        break;
     }
   }
 
