@@ -320,65 +320,74 @@ export default class MapRenderer {
    * Returns { resource, amount } or null if nothing was hit.
    */
   tryHarvest(hitX, hitY, hitRadius, toolId) {
+    // Find the nearest matching harvestable (not just the first in array order)
+    let nearest = null;
+    let nearestDist = Infinity;
     for (const h of this.harvestables) {
       if (h.depleted) continue;
+      if (h.config.tool !== toolId) continue;
       const dx = hitX - h.sprite.x;
       const dy = hitY - h.sprite.y;
       const dist = Math.sqrt(dx * dx + dy * dy);
       if (dist > hitRadius) continue;
-      if (h.config.tool !== toolId) continue;
+      if (dist < nearestDist) {
+        nearestDist = dist;
+        nearest = h;
+      }
+    }
 
-      h.hitsLeft--;
+    if (!nearest) return null;
 
-      // Shake animation on hit
+    const h = nearest;
+    h.hitsLeft--;
+
+    // Shake animation on hit
+    this.scene.tweens.add({
+      targets: h.sprite,
+      x: h.sprite.x + 3,
+      duration: 50,
+      yoyo: true,
+      repeat: 2,
+    });
+
+    // Emit particles
+    if (this.scene.particleManager) {
+      this.scene.particleManager.emitSparks(h.sprite.x, h.sprite.y);
+    }
+
+    if (h.hitsLeft <= 0) {
+      // Depleted — calculate yield
+      const [min, max] = h.config.yield;
+      const amount = min + Math.floor(Math.random() * (max - min + 1));
+
+      // Fade out and mark depleted
+      h.depleted = true;
       this.scene.tweens.add({
         targets: h.sprite,
-        x: h.sprite.x + 3,
-        duration: 50,
-        yoyo: true,
-        repeat: 2,
+        alpha: 0,
+        scaleX: 0.5,
+        scaleY: 0.5,
+        duration: 300,
+        onComplete: () => h.sprite.setVisible(false),
       });
 
-      // Emit particles
-      if (this.scene.particleManager) {
-        this.scene.particleManager.emitSparks(h.sprite.x, h.sprite.y);
-      }
-
-      if (h.hitsLeft <= 0) {
-        // Depleted — calculate yield
-        const [min, max] = h.config.yield;
-        const amount = min + Math.floor(Math.random() * (max - min + 1));
-
-        // Fade out and mark depleted
-        h.depleted = true;
+      // Respawn after 30 seconds
+      this.scene.time.delayedCall(30000, () => {
+        h.depleted = false;
+        h.hitsLeft = h.config.hits;
+        h.sprite.setVisible(true);
+        h.sprite.setAlpha(0);
+        h.sprite.setScale(1);
         this.scene.tweens.add({
           targets: h.sprite,
-          alpha: 0,
-          scaleX: 0.5,
-          scaleY: 0.5,
-          duration: 300,
-          onComplete: () => h.sprite.setVisible(false),
+          alpha: h.alpha,
+          duration: 500,
         });
+      });
 
-        // Respawn after 30 seconds
-        this.scene.time.delayedCall(30000, () => {
-          h.depleted = false;
-          h.hitsLeft = h.config.hits;
-          h.sprite.setVisible(true);
-          h.sprite.setAlpha(0);
-          h.sprite.setScale(1);
-          this.scene.tweens.add({
-            targets: h.sprite,
-            alpha: h.alpha,
-            duration: 500,
-          });
-        });
-
-        return { resource: h.config.resource, amount };
-      }
-      return null; // Hit registered but not yet depleted
+      return { resource: h.config.resource, amount };
     }
-    return null; // Nothing in range
+    return null; // Hit registered but not yet depleted
   }
 
   _setupWaterOverlays() {
