@@ -374,12 +374,21 @@ export default class GameScene extends Phaser.Scene {
     let found = null;
     for (const building of this.buildingSystem.buildings) {
       if (building.type !== 'castle' && building.type !== 'fort') continue;
-      const cx = building.tileX + Math.floor(building.config.size / 2);
-      const cy = building.tileY + Math.floor(building.config.size / 2);
-      const dx = cx - tilePos.x;
-      const dy = cy - tilePos.y;
-      const dist = Math.sqrt(dx * dx + dy * dy);
-      if (dist < building.config.size + 2) {
+      // Check if player is within 1.5 tiles of any tile the building occupies
+      const size = building.config.size;
+      let near = false;
+      for (let dy = 0; dy < size && !near; dy++) {
+        for (let dx = 0; dx < size && !near; dx++) {
+          const bx = building.tileX + dx;
+          const by = building.tileY + dy;
+          const ddx = bx - tilePos.x;
+          const ddy = by - tilePos.y;
+          if (Math.sqrt(ddx * ddx + ddy * ddy) < 2.5) {
+            near = true;
+          }
+        }
+      }
+      if (near) {
         found = building;
         break;
       }
