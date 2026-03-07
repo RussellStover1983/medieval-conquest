@@ -51,3 +51,23 @@ if (canvas) {
     setTimeout(() => window.location.reload(), 1000);
   });
 }
+
+// iPad/mobile: force correct scale after screen lock/unlock or tab switch.
+// Safari fires resize with stale dimensions — delay the re-check so it settles.
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden) {
+    setTimeout(() => {
+      game.scale.refresh();
+    }, 300);
+  }
+});
+
+// Also catch the resize event itself with a debounce, in case Safari sends
+// a bogus small size first then the real size a moment later.
+let resizeTimer;
+window.addEventListener('resize', () => {
+  clearTimeout(resizeTimer);
+  resizeTimer = setTimeout(() => {
+    game.scale.refresh();
+  }, 200);
+});
