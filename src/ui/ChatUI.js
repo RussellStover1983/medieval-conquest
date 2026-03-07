@@ -13,17 +13,80 @@ export default class ChatUI {
   }
 
   _createDOM() {
-    // Container
+    this.isOpen = false;
+    this._notifyTimer = null;
+
+    // Tab handle on left edge
+    this.tab = document.createElement('div');
+    this.tab.style.cssText = `
+      position: fixed;
+      bottom: 80px;
+      left: 0;
+      width: 28px;
+      height: 70px;
+      background: rgba(44, 24, 16, 0.85);
+      border: 1px solid rgba(139, 107, 74, 0.5);
+      border-left: none;
+      border-radius: 0 6px 6px 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      z-index: 1001;
+      pointer-events: auto;
+      transition: background 0.2s;
+    `;
+    this.tab.addEventListener('mouseenter', () => {
+      this.tab.style.background = 'rgba(44, 24, 16, 1)';
+    });
+    this.tab.addEventListener('mouseleave', () => {
+      this.tab.style.background = 'rgba(44, 24, 16, 0.85)';
+    });
+
+    // Tab label (vertical text)
+    this.tabLabel = document.createElement('span');
+    this.tabLabel.style.cssText = `
+      writing-mode: vertical-rl;
+      text-orientation: mixed;
+      font-family: Georgia, serif;
+      font-size: 11px;
+      color: #c8a860;
+      user-select: none;
+      letter-spacing: 1px;
+    `;
+    this.tabLabel.textContent = 'Chat';
+    this.tab.appendChild(this.tabLabel);
+
+    // Notification badge (hidden by default)
+    this.badge = document.createElement('div');
+    this.badge.style.cssText = `
+      position: absolute;
+      top: -4px;
+      right: -4px;
+      width: 14px;
+      height: 14px;
+      background: #cc3333;
+      border-radius: 50%;
+      border: 1px solid rgba(44, 24, 16, 0.9);
+      display: none;
+    `;
+    this.tab.appendChild(this.badge);
+
+    this.tab.addEventListener('click', () => this._togglePanel());
+    document.body.appendChild(this.tab);
+
+    // Slide-out panel
     this.container = document.createElement('div');
     this.container.style.cssText = `
       position: fixed;
       bottom: 10px;
-      left: 10px;
-      width: 350px;
-      height: 200px;
-      background: rgba(44, 24, 16, 0.7);
+      left: -310px;
+      width: 300px;
+      height: 260px;
+      background: rgba(44, 24, 16, 0.9);
       border: 1px solid rgba(139, 107, 74, 0.5);
-      border-radius: 4px;
+      border-left: none;
+      border-radius: 0 6px 6px 0;
       display: flex;
       flex-direction: column;
       font-family: Georgia, serif;
@@ -31,7 +94,29 @@ export default class ChatUI {
       color: #f4e4c1;
       z-index: 1000;
       pointer-events: auto;
+      transition: left 0.25s ease;
     `;
+
+    // Header bar with close button
+    this.header = document.createElement('div');
+    this.header.style.cssText = `
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 4px 8px;
+      border-bottom: 1px solid rgba(139, 107, 74, 0.3);
+      flex-shrink: 0;
+    `;
+    const headerTitle = document.createElement('span');
+    headerTitle.textContent = 'Chat (T)';
+    headerTitle.style.cssText = 'color: #c8a860; font-size: 11px;';
+    this.header.appendChild(headerTitle);
+    const closeBtn = document.createElement('span');
+    closeBtn.textContent = '\u2716';
+    closeBtn.style.cssText = 'color: #8b6b4a; cursor: pointer; font-size: 13px; padding: 0 2px;';
+    closeBtn.addEventListener('click', () => this._togglePanel());
+    this.header.appendChild(closeBtn);
+    this.container.appendChild(this.header);
 
     // Message list
     this.messageList = document.createElement('div');
@@ -50,6 +135,7 @@ export default class ChatUI {
       display: none;
       padding: 4px;
       border-top: 1px solid rgba(139, 107, 74, 0.3);
+      flex-shrink: 0;
     `;
 
     this.input = document.createElement('input');
@@ -100,6 +186,13 @@ export default class ChatUI {
     });
   }
 
+  _togglePanel() {
+    this.isOpen = !this.isOpen;
+    this.container.style.left = this.isOpen ? '0px' : '-310px';
+    this.tab.style.left = this.isOpen ? '300px' : '0';
+    this.badge.style.display = 'none';
+  }
+
   _setupKeyListeners() {
     // Listen for T or Enter to open chat
     this._keyHandler = (e) => {
@@ -138,6 +231,10 @@ export default class ChatUI {
   }
 
   _openInput() {
+    // Auto-open panel if closed
+    if (!this.isOpen) {
+      this._togglePanel();
+    }
     this.isInputOpen = true;
     this.inputContainer.style.display = 'block';
     this.input.focus();
@@ -189,6 +286,11 @@ export default class ChatUI {
 
     this.messageList.appendChild(div);
     this.messageList.scrollTop = this.messageList.scrollHeight;
+
+    // Show notification badge if panel is closed
+    if (!this.isOpen) {
+      this.badge.style.display = 'block';
+    }
   }
 
   _escapeHtml(text) {
@@ -203,6 +305,9 @@ export default class ChatUI {
     }
     if (this.container && this.container.parentNode) {
       this.container.remove();
+    }
+    if (this.tab && this.tab.parentNode) {
+      this.tab.remove();
     }
   }
 }
