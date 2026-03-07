@@ -59,6 +59,7 @@ export default class PlayerState {
       currency: player.currency,
       stats: this.stats,
       last_seen: new Date().toISOString(),
+      health: player.health,
     };
 
     // Serialize inventory
@@ -70,6 +71,43 @@ export default class PlayerState {
         }
       }
       data.inventory = items;
+      data.equipped = {
+        weapon: player.weapon || 'none',
+        activeTool: player.activeTool || null,
+        hotbarIndex: player.bag.activeHotbarIndex || 0,
+        hotbar: player.bag.hotbar || [],
+      };
+    }
+
+    // Serialize buildings
+    if (this.scene.buildingSystem) {
+      data.buildings = this.scene.buildingSystem.buildings.map(b => ({
+        tileX: b.tileX, tileY: b.tileY, type: b.type,
+      }));
+    }
+
+    // Serialize territory
+    if (this.scene.territoryManager) {
+      const tm = this.scene.territoryManager;
+      data.territory = {
+        discovered: Array.from(tm.discoveredTiles),
+        captured: Array.from(tm.capturedRegions),
+      };
+    }
+
+    // Serialize units
+    if (this.scene.unitManager) {
+      data.units = this.scene.unitManager.units
+        .filter(u => u.active)
+        .map(u => ({
+          typeKey: u.typeKey,
+          unitType: u.unitType || 'soldier',
+          x: u.sprite.x,
+          y: u.sprite.y,
+          health: u.health,
+          homeTileX: u.homeBuilding ? u.homeBuilding.tileX : 0,
+          homeTileY: u.homeBuilding ? u.homeBuilding.tileY : 0,
+        }));
     }
 
     // Fire and forget

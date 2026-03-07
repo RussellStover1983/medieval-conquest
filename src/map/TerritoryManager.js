@@ -80,6 +80,20 @@ export default class TerritoryManager {
     return discovered / region.totalTiles;
   }
 
+  restoreTerritory(savedTerritory) {
+    if (!savedTerritory) return;
+    if (Array.isArray(savedTerritory.discovered)) {
+      for (const key of savedTerritory.discovered) {
+        this.discoveredTiles.add(key);
+      }
+    }
+    if (Array.isArray(savedTerritory.captured)) {
+      for (const id of savedTerritory.captured) {
+        this.capturedRegions.add(id);
+      }
+    }
+  }
+
   renderOverlay(tileSize) {
     if (this.overlayGraphics) this.overlayGraphics.destroy();
 

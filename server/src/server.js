@@ -87,7 +87,7 @@ app.get('/api/player/:id', (req, res) => {
   }
   // Parse JSON fields
   const parsed = { ...player };
-  for (const field of ['titles', 'stats', 'inventory', 'personal_space', 'currency', 'current_position']) {
+  for (const field of ['titles', 'stats', 'inventory', 'personal_space', 'currency', 'current_position', 'buildings', 'territory', 'units', 'equipped']) {
     if (typeof parsed[field] === 'string') {
       try { parsed[field] = JSON.parse(parsed[field]); } catch { /* keep as string */ }
     }

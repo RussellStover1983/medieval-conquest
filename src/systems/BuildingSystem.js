@@ -151,6 +151,17 @@ export default class BuildingSystem {
     this.ghostSprite.setAlpha(0.6);
   }
 
+  restoreBuildings(savedBuildings) {
+    if (!savedBuildings || !Array.isArray(savedBuildings)) return;
+    for (const b of savedBuildings) {
+      const config = BUILDING_TYPES[b.type];
+      if (!config) continue;
+      const building = { tileX: b.tileX, tileY: b.tileY, type: b.type, config, sprites: [] };
+      this._renderBuilding(building);
+      this.buildings.push(building);
+    }
+  }
+
   getEffectiveCost(typeKey) {
     const config = BUILDING_TYPES[typeKey];
     if (!config) return {};

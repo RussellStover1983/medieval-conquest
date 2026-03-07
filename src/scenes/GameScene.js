@@ -108,6 +108,9 @@ export default class GameScene extends Phaser.Scene {
         this.chatUI = new ChatUI(this.scene.get('HUDScene'));
       }
 
+      // Restore saved player state (if logged in)
+      this._restoreSavedState(playerData);
+
       // Keep renderer and residential district boundaries
       this.keepRenderer = new KeepRenderer(this);
       this.keepRenderer.renderPlotBoundaries();
@@ -437,5 +440,88 @@ export default class GameScene extends Phaser.Scene {
       this.enteringVillage = false;
       this.nearVillage = null;
     });
+  }
+
+  _restoreSavedState(playerData) {
+    if (!playerData) return;
+
+    // Parse JSON fields if needed
+    const parse = (val) => {
+      if (typeof val === 'string') {
+        try { return JSON.parse(val); } catch { return null; }
+      }
+      return val;
+    };
+
+    // Restore position
+    const pos = parse(playerData.current_position);
+    if (pos && pos.x && pos.y) {
+      this.player.sprite.setPosition(pos.x, pos.y);
+    }
+
+    // Restore health
+    if (playerData.health !== undefined && playerData.health !== null) {
+      this.player.health = Math.min(playerData.health, this.player.maxHealth);
+    }
+
+    // Restore currency
+    const currency = parse(playerData.currency);
+    if (currency && typeof currency === 'object') {
+      Object.assign(this.player.currency, currency);
+    }
+
+    // Restore inventory
+    const inventory = parse(playerData.inventory);
+    if (Array.isArray(inventory) && inventory.length > 0) {
+      // Clear default empty inventory first
+      this.player.bag.slots.fill(null);
+      this.player.bag.hotbar.fill(-1);
+      for (const item of inventory) {
+        if (item && item.itemId) {
+          this.player.bag.addItem(item.itemId, item.quantity || 1);
+        }
+      }
+    }
+
+    // Restore equipped weapon/tool
+    const equipped = parse(playerData.equipped);
+    if (equipped) {
+      if (equipped.weapon && equipped.weapon !== 'none') {
+        this.player.equipWeapon(equipped.weapon);
+      }
+      if (equipped.activeTool) {
+        this.player.activeTool = equipped.activeTool;
+      }
+      if (equipped.hotbarIndex !== undefined) {
+        this.player.bag.activeHotbarIndex = equipped.hotbarIndex;
+      }
+      if (Array.isArray(equipped.hotbar)) {
+        for (let i = 0; i < equipped.hotbar.length && i < this.player.bag.hotbar.length; i++) {
+          this.player.bag.hotbar[i] = equipped.hotbar[i];
+        }
+      }
+    }
+
+    // Restore buildings
+    const buildings = parse(playerData.buildings);
+    if (Array.isArray(buildings) && buildings.length > 0) {
+      this.buildingSystem.restoreBuildings(buildings);
+    }
+
+    // Restore territory
+    const territory = parse(playerData.territory);
+    if (territory) {
+      this.territoryManager.restoreTerritory(territory);
+      // Re-render overlay with restored state
+      this.territoryManager.renderOverlay(TILE_SIZE);
+    }
+
+    // Restore units (needs buildings restored first for home references)
+    const units = parse(playerData.units);
+    if (Array.isArray(units) && units.length > 0) {
+      this.unitManager.restoreUnits(units, this.buildingSystem.buildings);
+    }
+
+    console.log('[GameScene] saved state restored');
   }
 }

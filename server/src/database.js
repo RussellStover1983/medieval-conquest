@@ -35,8 +35,25 @@ export async function initDatabase() {
     current_position TEXT DEFAULT '{}',
     is_founder INTEGER DEFAULT 1,
     total_play_time INTEGER DEFAULT 0,
-    last_seen TEXT
-  )`);
+    last_seen TEXT,
+    buildings TEXT DEFAULT '[]',
+    territory TEXT DEFAULT '{"discovered":[],"captured":[]}',
+    units TEXT DEFAULT '[]',
+    equipped TEXT DEFAULT '{"weapon":"none","activeTool":null,"hotbarIndex":0}',
+    health INTEGER DEFAULT 100
+  )`)
+
+  // Add new columns to existing databases (safe — ALTER TABLE IF NOT EXISTS not supported, so use try/catch)
+  const newColumns = [
+    ['buildings', "TEXT DEFAULT '[]'"],
+    ['territory', `TEXT DEFAULT '{"discovered":[],"captured":[]}'`],
+    ['units', "TEXT DEFAULT '[]'"],
+    ['equipped', `TEXT DEFAULT '{"weapon":"none","activeTool":null,"hotbarIndex":0}'`],
+    ['health', 'INTEGER DEFAULT 100'],
+  ];
+  for (const [col, def] of newColumns) {
+    try { db.run(`ALTER TABLE players ADD COLUMN ${col} ${def}`); } catch { /* already exists */ }
+  };
 
   db.run(`CREATE TABLE IF NOT EXISTS submissions (
     id TEXT PRIMARY KEY,
@@ -132,7 +149,8 @@ export function getPlayerById(id) {
 export function updatePlayer(id, fields) {
   const allowed = [
     'display_name', 'selected_class', 'titles', 'stats', 'inventory',
-    'personal_space', 'currency', 'current_position', 'total_play_time', 'last_seen'
+    'personal_space', 'currency', 'current_position', 'total_play_time', 'last_seen',
+    'buildings', 'territory', 'units', 'equipped', 'health'
   ];
   const updates = [];
   const values = [];
