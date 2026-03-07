@@ -274,6 +274,9 @@ export default class GameScene extends Phaser.Scene {
             const placed = this.buildingSystem.confirmPlacement();
             if (placed) {
               this.events.emit('buildingPlaced');
+              // Force proximity re-check on next frame so player can interact right away
+              this.lastTileX = -1;
+              this.lastTileY = -1;
             } else {
               this.events.emit('buildingPlaceFailed');
             }
@@ -375,7 +378,8 @@ export default class GameScene extends Phaser.Scene {
       const cy = building.tileY + Math.floor(building.config.size / 2);
       const dx = cx - tilePos.x;
       const dy = cy - tilePos.y;
-      if (Math.sqrt(dx * dx + dy * dy) < building.config.size + 1) {
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      if (dist < building.config.size + 2) {
         found = building;
         break;
       }
