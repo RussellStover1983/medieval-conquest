@@ -18,6 +18,18 @@ const TERRAIN_NAMES = {
 // Detect mobile for reduced detail (prevents WebGL memory crashes on iPad/phones)
 const IS_MOBILE = typeof navigator !== 'undefined' && (navigator.maxTouchPoints > 0 || /iPad|iPhone|Android/i.test(navigator.userAgent));
 
+// Harvestable detail sprite config: textureKey → { tool, resource, hitsRequired, yield }
+const HARVESTABLE = {
+  detail_tree:      { tool: 'axe', resource: 'wood', hits: 3, yield: [2, 4] },
+  detail_tree_pine: { tool: 'axe', resource: 'wood', hits: 3, yield: [2, 4] },
+  detail_bush:      { tool: 'axe', resource: 'wood', hits: 1, yield: [1, 1] },
+  detail_rock:      { tool: 'pickaxe', resource: 'stone', hits: 2, yield: [1, 3] },
+  detail_rock_large:{ tool: 'pickaxe', resource: 'stone', hits: 4, yield: [3, 6] },
+  detail_mountain:  { tool: 'pickaxe', resource: 'stone', hits: 5, yield: [4, 8] },
+};
+
+export { HARVESTABLE };
+
 export default class MapRenderer {
   constructor(scene) {
     this.scene = scene;
@@ -26,6 +38,7 @@ export default class MapRenderer {
     this.terrain = null;
     this.waterSprites = [];
     this.waterPositions = [];
+    this.harvestables = []; // { sprite, textureKey, hitsLeft, config, respawnTimer }
   }
 
   renderTerrain(terrain) {
@@ -287,6 +300,85 @@ export default class MapRenderer {
     const sprite = this.scene.add.sprite(x, y, textureKey);
     sprite.setDepth(1);
     sprite.setAlpha(alpha);
+
+    const config = HARVESTABLE[textureKey];
+    if (config) {
+      this.harvestables.push({
+        sprite,
+        textureKey,
+        x, y,
+        alpha,
+        hitsLeft: config.hits,
+        config,
+        depleted: false,
+      });
+    }
+  }
+
+  /**
+   * Try to harvest a sprite near (hitX, hitY) with the given tool.
+   * Returns { resource, amount } or null if nothing was hit.
+   */
+  tryHarvest(hitX, hitY, hitRadius, toolId) {
+    for (const h of this.harvestables) {
+      if (h.depleted) continue;
+      const dx = hitX - h.sprite.x;
+      const dy = hitY - h.sprite.y;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      if (dist > hitRadius) continue;
+      if (h.config.tool !== toolId) continue;
+
+      h.hitsLeft--;
+
+      // Shake animation on hit
+      this.scene.tweens.add({
+        targets: h.sprite,
+        x: h.sprite.x + 3,
+        duration: 50,
+        yoyo: true,
+        repeat: 2,
+      });
+
+      // Emit particles
+      if (this.scene.particleManager) {
+        this.scene.particleManager.emitSparks(h.sprite.x, h.sprite.y);
+      }
+
+      if (h.hitsLeft <= 0) {
+        // Depleted — calculate yield
+        const [min, max] = h.config.yield;
+        const amount = min + Math.floor(Math.random() * (max - min + 1));
+
+        // Fade out and mark depleted
+        h.depleted = true;
+        this.scene.tweens.add({
+          targets: h.sprite,
+          alpha: 0,
+          scaleX: 0.5,
+          scaleY: 0.5,
+          duration: 300,
+          onComplete: () => h.sprite.setVisible(false),
+        });
+
+        // Respawn after 30 seconds
+        this.scene.time.delayedCall(30000, () => {
+          h.depleted = false;
+          h.hitsLeft = h.config.hits;
+          h.sprite.setVisible(true);
+          h.sprite.setAlpha(0);
+          h.sprite.setScale(1);
+          this.scene.tweens.add({
+            targets: h.sprite,
+            alpha: h.alpha,
+            duration: 500,
+          });
+        });
+
+        return { resource: h.config.resource, amount };
+      }
+      return null; // Hit registered but not yet depleted
+    }
+    return null; // Nothing in range
   }
 
   _setupWaterOverlays() {

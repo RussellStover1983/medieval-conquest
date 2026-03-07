@@ -142,6 +142,20 @@ export default class CombatSystem {
     if (hitAny) {
       this.scene.cameras.main.shake(100, 0.003);
     }
+
+    // Harvesting: check tool or weapon against harvestable sprites
+    // Axe weapon chops trees, pickaxe tool mines stone
+    if (this.scene.mapRenderer) {
+      const harvestTool = this.player.activeTool || (this.player.weapon !== 'none' ? this.player.weapon : null);
+      if (harvestTool) {
+        const harvestHitRadius = (flashW + flashH) / 3;
+        const result = this.scene.mapRenderer.tryHarvest(hitX, hitY, harvestHitRadius, harvestTool);
+        if (result) {
+          this.player.collectResource(result.resource, result.amount);
+          this.scene.events.emit('resourceCollected', result.resource, result.amount);
+        }
+      }
+    }
   }
 
   damagePlayer(enemy) {

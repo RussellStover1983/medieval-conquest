@@ -239,7 +239,7 @@ export const ITEMS = {
     gemCost: { gold: 20 },
     resourceMultiplier: 2.0,
     iconColor: 0x888888,
-    description: '2x resource value',
+    description: 'Mine stone from rocks',
     stackable: false,
     maxStack: 1,
   },
