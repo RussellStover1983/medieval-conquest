@@ -11,6 +11,7 @@ import EnemySpawner from '../systems/EnemySpawner.js';
 import CombatSystem from '../systems/CombatSystem.js';
 import ParticleManager from '../systems/ParticleManager.js';
 import BuildingSystem from '../systems/BuildingSystem.js';
+import UnitManager from '../systems/UnitManager.js';
 import NetworkManager from '../network/NetworkManager.js';
 import PlayerState from '../player/PlayerState.js';
 import ChatUI from '../ui/ChatUI.js';
@@ -86,6 +87,9 @@ export default class GameScene extends Phaser.Scene {
       // Building system
       this.buildingSystem = new BuildingSystem(this, this.player, this.mapData.terrain, this.territoryManager);
 
+      // Unit manager
+      this.unitManager = new UnitManager(this, this.player);
+
       // Multiplayer (only if logged in)
       this.networkManager = null;
       const playerData = this.registry.get('playerData');
@@ -155,6 +159,7 @@ export default class GameScene extends Phaser.Scene {
         mapData: this.mapData,
         combatSystem: this.combatSystem,
         buildingSystem: this.buildingSystem,
+        unitManager: this.unitManager,
       });
       // Keep keyboard input active even with HUD scene on top
       this.input.keyboard.enabled = true;
@@ -183,6 +188,7 @@ export default class GameScene extends Phaser.Scene {
       this.eKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.E);
       this.eKeyJustPressed = false;
       this.nearVillage = null;
+      this.nearBuilding = null;
       this.enteringVillage = false;
 
       // Handle wake from village
@@ -214,6 +220,9 @@ export default class GameScene extends Phaser.Scene {
 
         // Building system ghost placement
         this.buildingSystem.update(dt);
+
+        // Unit manager
+        this.unitManager.update(dt);
       }
 
       // Update multiplayer
@@ -251,6 +260,9 @@ export default class GameScene extends Phaser.Scene {
 
         // Check structure proximity
         this._checkStructureProximity(tilePos);
+
+        // Check building proximity (castle/fort)
+        this._checkBuildingProximity(tilePos);
       }
 
       // E key: building placement takes priority over village entry
@@ -262,7 +274,11 @@ export default class GameScene extends Phaser.Scene {
             const placed = this.buildingSystem.confirmPlacement();
             if (placed) {
               this.events.emit('buildingPlaced');
+            } else {
+              this.events.emit('buildingPlaceFailed');
             }
+          } else if (this.nearBuilding) {
+            this.events.emit('openCastleUI', this.nearBuilding);
           } else if (this.nearStructure) {
             this._openStructureUI(this.nearStructure);
           } else if (this.nearVillage) {
@@ -348,6 +364,29 @@ export default class GameScene extends Phaser.Scene {
     } else if (!found && this.nearStructure) {
       this.nearStructure = null;
       this.events.emit('leftStructure');
+    }
+  }
+
+  _checkBuildingProximity(tilePos) {
+    let found = null;
+    for (const building of this.buildingSystem.buildings) {
+      if (building.type !== 'castle' && building.type !== 'fort') continue;
+      const cx = building.tileX + Math.floor(building.config.size / 2);
+      const cy = building.tileY + Math.floor(building.config.size / 2);
+      const dx = cx - tilePos.x;
+      const dy = cy - tilePos.y;
+      if (Math.sqrt(dx * dx + dy * dy) < building.config.size + 1) {
+        found = building;
+        break;
+      }
+    }
+
+    if (found && !this.nearBuilding) {
+      this.nearBuilding = found;
+      this.events.emit('nearBuilding', found);
+    } else if (!found && this.nearBuilding) {
+      this.nearBuilding = null;
+      this.events.emit('leftBuilding');
     }
   }
 

@@ -11,6 +11,8 @@ import Hotbar from '../ui/Hotbar.js';
 import InventoryPanel from '../ui/InventoryPanel.js';
 import BuildMenu from '../ui/BuildMenu.js';
 import CharacterMenu from '../ui/CharacterMenu.js';
+import UnitSelectionUI from '../ui/UnitSelectionUI.js';
+import CastleSpawnUI from '../ui/CastleSpawnUI.js';
 import { VERSION } from '../version.js';
 
 export default class HUDScene extends Phaser.Scene {
@@ -26,6 +28,7 @@ export default class HUDScene extends Phaser.Scene {
     this.mapData = data.mapData;
     this.combatSystem = data.combatSystem;
     this.buildingSystem = data.buildingSystem;
+    this.unitManager = data.unitManager;
   }
 
   create() {
@@ -137,6 +140,12 @@ export default class HUDScene extends Phaser.Scene {
     this.buildMenu = new BuildMenu(this, this.player, this.buildingSystem);
     this.bKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.B);
     this.bKeyJustPressed = false;
+
+    // Unit selection UI
+    if (this.unitManager) {
+      this.unitSelectionUI = new UnitSelectionUI(this, this.unitManager);
+      this.castleSpawnUI = new CastleSpawnUI(this, this.unitManager);
+    }
 
     // ESC key for cancelling placement
     this.escKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.ESC);
@@ -256,6 +265,30 @@ export default class HUDScene extends Phaser.Scene {
       this.updateViewState();
     });
 
+    gameScene.events.on('nearBuilding', (building) => {
+      this.villagePrompt.setText(`Press E to Open ${building.type === 'castle' ? 'Castle' : 'Fort'}`);
+      this.villagePrompt.setVisible(true);
+    });
+
+    gameScene.events.on('leftBuilding', () => {
+      this.villagePrompt.setVisible(false);
+    });
+
+    gameScene.events.on('openCastleUI', (building) => {
+      if (this.castleSpawnUI) {
+        if (this.castleSpawnUI.isOpen) {
+          this.castleSpawnUI.close();
+        } else {
+          this.castleSpawnUI.open(building, building.type);
+        }
+        gameScene.events.emit('pauseInput', this.castleSpawnUI.isOpen);
+      }
+    });
+
+    gameScene.events.on('buildingPlaceFailed', () => {
+      this.showPlacementError();
+    });
+
     gameScene.events.on('playerDied', () => {
       this.showDeathOverlay();
     });
@@ -298,6 +331,29 @@ export default class HUDScene extends Phaser.Scene {
       targets: [this.deathOverlay, this.deathText],
       alpha: 0,
       duration: 500,
+    });
+  }
+
+  showPlacementError() {
+    const msg = 'Cannot place here — not enough resources or invalid position';
+    const errText = this.add.text(GAME_WIDTH / 2, GAME_HEIGHT / 2 - 40, msg, {
+      fontSize: '16px',
+      fontFamily: 'Georgia, serif',
+      color: '#ff6666',
+      stroke: '#2c1810',
+      strokeThickness: 3,
+    });
+    errText.setOrigin(0.5);
+    errText.setScrollFactor(0);
+    errText.setDepth(300);
+
+    this.tweens.add({
+      targets: errText,
+      y: GAME_HEIGHT / 2 - 80,
+      alpha: 0,
+      duration: 1500,
+      ease: 'Power2',
+      onComplete: () => errText.destroy(),
     });
   }
 
@@ -387,7 +443,11 @@ export default class HUDScene extends Phaser.Scene {
     const escDown = this.escKey.isDown;
     if (escDown && !this.escKeyJustPressed) {
       this.escKeyJustPressed = true;
-      if (this.buildingSystem && this.buildingSystem.isPlacing) {
+      if (this.castleSpawnUI && this.castleSpawnUI.isOpen) {
+        this.castleSpawnUI.close();
+        const gameScene = this.scene.get('GameScene');
+        gameScene.events.emit('pauseInput', false);
+      } else if (this.buildingSystem && this.buildingSystem.isPlacing) {
         this.buildingSystem.cancelPlacement();
       } else if (this.buildMenu.isOpen) {
         this.buildMenu.close();
@@ -426,6 +486,11 @@ export default class HUDScene extends Phaser.Scene {
       } else if (!down) {
         this.numKeysJustPressed[i] = false;
       }
+    }
+
+    // Update unit selection UI
+    if (this.unitSelectionUI) {
+      this.unitSelectionUI.update();
     }
 
     // Skip overworld-specific updates during village mode

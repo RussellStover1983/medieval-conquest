@@ -116,6 +116,18 @@ export default class BuildingSystem {
     }
   }
 
+  _canAfford(typeKey) {
+    const config = BUILDING_TYPES[typeKey];
+    if (!config) return false;
+    const buildStat = this.player.classData.build;
+    const costMult = Math.max(0.5, 1 - (buildStat - 2) * 0.05);
+    for (const [res, amount] of Object.entries(config.cost)) {
+      const needed = Math.ceil(amount * costMult);
+      if ((this.player.currency[res] || 0) < needed) return false;
+    }
+    return true;
+  }
+
   update(dt) {
     if (!this.isPlacing || !this.ghostSprite) return;
 
@@ -134,7 +146,7 @@ export default class BuildingSystem {
     const worldY = this.ghostTileY * TILE_SIZE + (size * TILE_SIZE) / 2;
     this.ghostSprite.setPosition(worldX, worldY);
 
-    const canBuild = this._canBuildAt(this.ghostTileX, this.ghostTileY, size);
+    const canBuild = this._canBuildAt(this.ghostTileX, this.ghostTileY, size) && this._canAfford(this.placingType);
     this.ghostSprite.setTint(canBuild ? 0x88ff88 : 0xff8888);
     this.ghostSprite.setAlpha(0.6);
   }
