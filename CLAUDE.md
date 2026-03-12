@@ -84,6 +84,10 @@ Game logic is separated into systems that operate on entities:
 - `src/world/WorldDefinition.js` — world version, protected zones, keep plots, keep items, world structures
 - `src/version.js` — client version string (must match `WORLD_VERSION` in WorldDefinition.js)
 
+## Data Dependencies
+
+None — self-contained. All game data is procedurally generated or stored in SQLite.
+
 ## Protected Data (DO NOT MODIFY)
 
 - **NEVER** modify `PROTECTED_ZONES` coordinates in `WorldDefinition.js` — player keeps exist in these areas

@@ -27,6 +27,19 @@ export default class CastleSpawnUI {
       el.destroy();
     }
     this.elements = [];
+    // Emit on GameScene events (not HUDScene) since that's where the listener is
+    const gameScene = this.scene.scene.get('GameScene');
+    if (gameScene) {
+      gameScene.events.emit('pauseInput', false);
+    }
+  }
+
+  _rerender(bld, bldType) {
+    for (const el of this.elements) el.destroy();
+    this.elements = [];
+    this.building = bld;
+    this.buildingType = bldType;
+    this._render();
   }
 
   _render() {
@@ -158,9 +171,7 @@ export default class CastleSpawnUI {
           spawned = this.unitManager.spawnVillager(key, bld);
         }
         if (spawned) {
-          // Re-render to update counts and button states
-          this.close();
-          this.open(bld, bldType);
+          this._rerender(bld, bldType);
         }
       });
     }

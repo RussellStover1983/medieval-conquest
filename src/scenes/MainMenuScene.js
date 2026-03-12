@@ -42,12 +42,21 @@ export default class MainMenuScene extends Phaser.Scene {
     }).setOrigin(0.5);
 
     // Play button
-    this.createButton(GAME_WIDTH / 2, 400, 'Begin Adventure', () => {
+    this.createButton(GAME_WIDTH / 2, 380, 'Begin Adventure', () => {
       this.cameras.main.fadeOut(300, 44, 24, 16);
       this.cameras.main.once('camerafadeoutcomplete', () => {
         this.scene.start('LoginScene');
       });
     });
+
+    // Test mode button
+    this.createButton(GAME_WIDTH / 2, 450, 'Test Mode', () => {
+      this.registry.set('testMode', true);
+      this.cameras.main.fadeOut(300, 44, 24, 16);
+      this.cameras.main.once('camerafadeoutcomplete', () => {
+        this.scene.start('CharSelectScene');
+      });
+    }, true);
 
     // Version
     this.add.text(GAME_WIDTH / 2, GAME_HEIGHT - 60, 'Phase 1 - Map Exploration', {
@@ -57,17 +66,19 @@ export default class MainMenuScene extends Phaser.Scene {
     }).setOrigin(0.5);
   }
 
-  createButton(x, y, text, onClick) {
-    const bg = this.add.rectangle(x, y, 220, 50, UI_COLORS.INK_DARK, 0.1);
+  createButton(x, y, text, onClick, small = false) {
+    const w = small ? 160 : 220;
+    const h = small ? 36 : 50;
+    const bg = this.add.rectangle(x, y, w, h, UI_COLORS.INK_DARK, small ? 0.05 : 0.1);
     bg.setInteractive({ useHandCursor: true });
 
-    const border = this.add.rectangle(x, y, 220, 50);
-    border.setStrokeStyle(2, UI_COLORS.INK_DARK, 0.6);
+    const border = this.add.rectangle(x, y, w, h);
+    border.setStrokeStyle(small ? 1 : 2, UI_COLORS.INK_DARK, small ? 0.3 : 0.6);
 
     const label = this.add.text(x, y, text, {
-      fontSize: '20px',
+      fontSize: small ? '14px' : '20px',
       fontFamily: 'Georgia, serif',
-      color: '#2c1810',
+      color: small ? '#8b6b4a' : '#2c1810',
     }).setOrigin(0.5);
 
     bg.on('pointerover', () => {

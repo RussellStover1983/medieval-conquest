@@ -15,6 +15,7 @@ import UnitManager from '../systems/UnitManager.js';
 import NetworkManager from '../network/NetworkManager.js';
 import PlayerState from '../player/PlayerState.js';
 import ChatUI from '../ui/ChatUI.js';
+import HelpUI from '../ui/HelpUI.js';
 import KeepRenderer from '../player/KeepRenderer.js';
 import { PROTECTED_ZONES, WORLD_STRUCTURES } from '../world/WorldDefinition.js';
 import BuildersHallUI from '../ui/BuildersHallUI.js';
@@ -108,8 +109,19 @@ export default class GameScene extends Phaser.Scene {
         this.chatUI = new ChatUI(this.scene.get('HUDScene'));
       }
 
+      // Help panel (available for all players)
+      this.helpUI = new HelpUI(this.scene.get('HUDScene'));
+
       // Restore saved player state (if logged in)
       this._restoreSavedState(playerData);
+
+      // Test mode: grant 500 of each resource
+      if (this.registry.get('testMode')) {
+        for (const key of Object.keys(this.player.currency)) {
+          this.player.currency[key] = 500;
+        }
+        console.log('[GameScene] Test mode: 500 of each currency granted');
+      }
 
       // Keep renderer and residential district boundaries
       this.keepRenderer = new KeepRenderer(this);
@@ -223,10 +235,10 @@ export default class GameScene extends Phaser.Scene {
 
         // Building system ghost placement
         this.buildingSystem.update(dt);
-
-        // Unit manager
-        this.unitManager.update(dt);
       }
+
+      // Unit manager — always update so units keep their AI even when menus are open
+      this.unitManager.update(dt);
 
       // Update multiplayer
       if (this.networkManager) {

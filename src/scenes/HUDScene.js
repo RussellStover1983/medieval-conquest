@@ -444,9 +444,7 @@ export default class HUDScene extends Phaser.Scene {
     if (escDown && !this.escKeyJustPressed) {
       this.escKeyJustPressed = true;
       if (this.castleSpawnUI && this.castleSpawnUI.isOpen) {
-        this.castleSpawnUI.close();
-        const gameScene = this.scene.get('GameScene');
-        gameScene.events.emit('pauseInput', false);
+        this.castleSpawnUI.close(); // close() now emits pauseInput(false) to GameScene
       } else if (this.buildingSystem && this.buildingSystem.isPlacing) {
         this.buildingSystem.cancelPlacement();
       } else if (this.buildMenu.isOpen) {

@@ -69,10 +69,10 @@ export default class CharacterMenu {
     this.elements.push(this.joinDateText);
 
     // Stats section
-    this.scene.add.text(left + 20, top + 154, 'STATS', {
+    const statsHeader = this.scene.add.text(left + 20, top + 154, 'STATS', {
       fontSize: '13px', fontFamily: 'Georgia, serif', color: '#ffd700', fontStyle: 'bold',
     }).setScrollFactor(0).setDepth(512);
-    this.elements.push(this.elements[this.elements.length]); // won't push, just a label
+    this.elements.push(statsHeader);
 
     const statNames = ['Exploration', 'Building', 'Combat', 'Contribution'];
     const statKeys = ['exploration', 'building', 'combat', 'contribution'];
@@ -107,9 +107,10 @@ export default class CharacterMenu {
 
     // Titles section
     const titlesY = top + 300;
-    this.scene.add.text(left + 20, titlesY, 'TITLES', {
+    const titlesHeader = this.scene.add.text(left + 20, titlesY, 'TITLES', {
       fontSize: '13px', fontFamily: 'Georgia, serif', color: '#ffd700', fontStyle: 'bold',
     }).setScrollFactor(0).setDepth(512);
+    this.elements.push(titlesHeader);
 
     this.titleListTexts = [];
     for (let i = 0; i < 3; i++) {

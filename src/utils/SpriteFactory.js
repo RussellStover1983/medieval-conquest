@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { TERRAIN, TILE_SIZE } from '../constants.js';
+import { TERRAIN, TILE_SIZE, SOLDIER_TYPES, VILLAGER_TYPES } from '../constants.js';
 import { TERRAIN_PALETTE } from './ParchmentColors.js';
 
 // Cel-shading grayscale palette (for tinted sprites: player, enemies, NPCs)
@@ -31,6 +31,7 @@ export default class SpriteFactory {
     SpriteFactory.generateStructureTextures(scene);
     SpriteFactory.generateTerrainTileTextures(scene);
     SpriteFactory.generateTransitionTextures(scene);
+    SpriteFactory.generateUnitTextures(scene);
   }
 
   // ── Terrain tile textures (32x32 with internal detail) ──────────────────
@@ -2452,6 +2453,410 @@ export default class SpriteFactory {
         repeat: -1,
       });
     }
+
+    // Unit animations (soldiers + villagers)
+    const soldierNames = Object.keys(SOLDIER_TYPES);
+    const villagerNames = Object.keys(VILLAGER_TYPES);
+    const unitNames = [...soldierNames, ...villagerNames];
+    for (const name of unitNames) {
+      scene.anims.create({
+        key: `unit_${name}_idle`,
+        frames: [0, 1].map(f => ({ key: `unit_${name}_idle_${f}` })),
+        frameRate: 3,
+        repeat: -1,
+      });
+      scene.anims.create({
+        key: `unit_${name}_move`,
+        frames: [0, 1].map(f => ({ key: `unit_${name}_move_${f}` })),
+        frameRate: 6,
+        repeat: -1,
+      });
+    }
+  }
+
+  // ── Unit textures (soldiers + villagers) ──────────────────────────────────
+
+  static generateUnitTextures(scene) {
+    // Soldiers
+    const soldierDrawers = {
+      Pawn: SpriteFactory._drawPawnUnit,
+      Archer: SpriteFactory._drawArcherUnit,
+      WhiteKnight: SpriteFactory._drawWhiteKnightUnit,
+      Barbarian: SpriteFactory._drawBarbarianUnit,
+      BlackKnight: SpriteFactory._drawBlackKnightUnit,
+    };
+
+    for (const [name, config] of Object.entries(SOLDIER_TYPES)) {
+      const drawer = soldierDrawers[name];
+      for (const state of ['idle', 'move']) {
+        for (let f = 0; f < 2; f++) {
+          const key = `unit_${name}_idle_${f}`;
+          const moveKey = `unit_${name}_move_${f}`;
+          const g = scene.add.graphics();
+          drawer(g, config.size, state, f);
+          if (state === 'idle') {
+            g.generateTexture(key, config.size, config.size);
+          } else {
+            g.generateTexture(moveKey, config.size, config.size);
+          }
+          g.destroy();
+        }
+      }
+    }
+
+    // Villagers
+    const villagerDrawers = {
+      Farmer: SpriteFactory._drawFarmerUnit,
+      Builder: SpriteFactory._drawBuilderUnit,
+      Miner: SpriteFactory._drawMinerUnit,
+      Lumberjack: SpriteFactory._drawLumberjackUnit,
+    };
+
+    for (const [name, config] of Object.entries(VILLAGER_TYPES)) {
+      const drawer = villagerDrawers[name];
+      for (const state of ['idle', 'move']) {
+        for (let f = 0; f < 2; f++) {
+          const key = `unit_${name}_idle_${f}`;
+          const moveKey = `unit_${name}_move_${f}`;
+          const g = scene.add.graphics();
+          drawer(g, config.size, state, f);
+          if (state === 'idle') {
+            g.generateTexture(key, config.size, config.size);
+          } else {
+            g.generateTexture(moveKey, config.size, config.size);
+          }
+          g.destroy();
+        }
+      }
+    }
+
+    // Selection circle texture
+    const sg = scene.add.graphics();
+    sg.lineStyle(1, 0xffffff, 0.8);
+    sg.strokeCircle(12, 12, 10);
+    sg.generateTexture('unit_selection_circle', 24, 24);
+    sg.destroy();
+
+    // Arrow projectile
+    const ag = scene.add.graphics();
+    ag.fillStyle(SHADE.BASE, 1);
+    ag.fillRect(0, 2, 8, 2);
+    ag.fillStyle(SHADE.HIGHLIGHT, 1);
+    ag.fillRect(6, 1, 2, 4);
+    ag.generateTexture('unit_arrow', 8, 6);
+    ag.destroy();
+  }
+
+  // --- Soldier sprite drawers ---
+
+  static _drawPawnUnit(g, size, state, frame) {
+    const cx = size / 2, cy = size / 2;
+    // Outline
+    g.fillStyle(SHADE.OUTLINE, 1);
+    g.fillRect(cx - 3, cy - 7, 6, 5);
+    g.fillRect(cx - 4, cy - 3, 8, 7);
+    // Head
+    g.fillStyle(SHADE.BASE, 1);
+    g.fillRect(cx - 2, cy - 6, 4, 4);
+    g.fillStyle(SHADE.HIGHLIGHT, 1);
+    g.fillRect(cx - 2, cy - 6, 2, 2);
+    // Helmet
+    g.fillStyle(SHADE.SHADOW, 1);
+    g.fillRect(cx - 3, cy - 7, 6, 2);
+    // Body
+    g.fillStyle(SHADE.BASE, 1);
+    g.fillRect(cx - 3, cy - 2, 6, 5);
+    g.fillStyle(SHADE.HIGHLIGHT, 1);
+    g.fillRect(cx - 3, cy - 2, 3, 4);
+    // Legs
+    const legOff = state === 'move' ? (frame === 0 ? 1 : -1) : 0;
+    g.fillStyle(SHADE.BASE, 1);
+    g.fillRect(cx - 3, cy + 3, 2, 3 + legOff);
+    g.fillRect(cx + 1, cy + 3, 2, 3 - legOff);
+    // Short sword (right side)
+    g.fillStyle(SHADE.HIGHLIGHT, 1);
+    g.fillRect(cx + 4, cy - 3, 2, 6);
+    g.fillStyle(SHADE.SPECULAR, 1);
+    g.fillRect(cx + 4, cy - 3, 1, 4);
+    // Banner (small green pennant on back)
+    g.fillStyle(0x44aa44, 1);
+    g.fillRect(cx - 4, cy - 6, 2, 3);
+  }
+
+  static _drawArcherUnit(g, size, state, frame) {
+    const cx = size / 2, cy = size / 2;
+    g.fillStyle(SHADE.OUTLINE, 1);
+    g.fillRect(cx - 3, cy - 7, 6, 5);
+    g.fillRect(cx - 4, cy - 3, 8, 7);
+    // Head with hood
+    g.fillStyle(SHADE.BASE, 1);
+    g.fillRect(cx - 2, cy - 6, 4, 4);
+    g.fillStyle(SHADE.SHADOW, 1);
+    g.fillRect(cx - 2, cy - 7, 4, 2);
+    // Body
+    g.fillStyle(SHADE.BASE, 1);
+    g.fillRect(cx - 3, cy - 2, 6, 5);
+    g.fillStyle(SHADE.HIGHLIGHT, 1);
+    g.fillRect(cx - 3, cy - 2, 3, 3);
+    // Legs
+    const legOff = state === 'move' ? (frame === 0 ? 1 : -1) : 0;
+    g.fillStyle(SHADE.BASE, 1);
+    g.fillRect(cx - 2, cy + 3, 2, 3 + legOff);
+    g.fillRect(cx + 1, cy + 3, 2, 3 - legOff);
+    // Bow
+    g.fillStyle(SHADE.SHADOW, 1);
+    g.fillRect(cx + 4, cy - 5, 1, 8);
+    g.fillStyle(SHADE.HIGHLIGHT, 1);
+    g.fillRect(cx + 5, cy - 3, 1, 4);
+    // Banner
+    g.fillStyle(0x44aa44, 1);
+    g.fillRect(cx - 4, cy - 6, 2, 3);
+  }
+
+  static _drawWhiteKnightUnit(g, size, state, frame) {
+    const cx = size / 2, cy = size / 2;
+    g.fillStyle(SHADE.OUTLINE, 1);
+    g.fillRect(cx - 4, cy - 8, 8, 6);
+    g.fillRect(cx - 5, cy - 3, 10, 8);
+    // Helm
+    g.fillStyle(SHADE.SPECULAR, 1);
+    g.fillRect(cx - 3, cy - 7, 6, 5);
+    g.fillStyle(SHADE.HIGHLIGHT, 1);
+    g.fillRect(cx - 3, cy - 7, 3, 3);
+    g.fillStyle(SHADE.SHADOW, 1);
+    g.fillRect(cx - 1, cy - 4, 4, 1);
+    // Visor slit
+    g.fillStyle(SHADE.DEEP, 1);
+    g.fillRect(cx - 1, cy - 5, 3, 1);
+    // Body (armored)
+    g.fillStyle(SHADE.BASE, 1);
+    g.fillRect(cx - 4, cy - 2, 8, 6);
+    g.fillStyle(SHADE.HIGHLIGHT, 1);
+    g.fillRect(cx - 4, cy - 2, 4, 4);
+    g.fillStyle(SHADE.SHADOW, 1);
+    g.fillRect(cx + 1, cy + 1, 3, 3);
+    // Shield (left)
+    g.fillStyle(SHADE.BASE, 1);
+    g.fillRect(cx - 6, cy - 2, 3, 5);
+    g.fillStyle(SHADE.HIGHLIGHT, 1);
+    g.fillRect(cx - 6, cy - 2, 2, 3);
+    // Longsword (right)
+    g.fillStyle(SHADE.SPECULAR, 1);
+    g.fillRect(cx + 5, cy - 5, 2, 8);
+    g.fillStyle(SHADE.HIGHLIGHT, 1);
+    g.fillRect(cx + 5, cy - 5, 1, 6);
+    // Legs
+    const legOff = state === 'move' ? (frame === 0 ? 1 : -1) : 0;
+    g.fillStyle(SHADE.BASE, 1);
+    g.fillRect(cx - 3, cy + 4, 2, 3 + legOff);
+    g.fillRect(cx + 1, cy + 4, 2, 3 - legOff);
+    // Banner
+    g.fillStyle(0x44aa44, 1);
+    g.fillRect(cx - 5, cy - 7, 2, 4);
+  }
+
+  static _drawBarbarianUnit(g, size, state, frame) {
+    const cx = size / 2, cy = size / 2;
+    g.fillStyle(SHADE.OUTLINE, 1);
+    g.fillRect(cx - 4, cy - 8, 8, 6);
+    g.fillRect(cx - 5, cy - 3, 10, 9);
+    // Head (wild hair)
+    g.fillStyle(SHADE.BASE, 1);
+    g.fillRect(cx - 3, cy - 7, 6, 5);
+    g.fillStyle(SHADE.SHADOW, 1);
+    g.fillRect(cx - 4, cy - 8, 8, 2);
+    g.fillRect(cx - 4, cy - 7, 1, 3);
+    g.fillRect(cx + 3, cy - 7, 1, 3);
+    // Body (muscular)
+    g.fillStyle(SHADE.BASE, 1);
+    g.fillRect(cx - 4, cy - 2, 8, 7);
+    g.fillStyle(SHADE.HIGHLIGHT, 1);
+    g.fillRect(cx - 4, cy - 2, 4, 4);
+    g.fillStyle(SHADE.SHADOW, 1);
+    g.fillRect(cx + 1, cy + 2, 3, 3);
+    // Two-handed axe (right)
+    g.fillStyle(SHADE.SHADOW, 1);
+    g.fillRect(cx + 5, cy - 6, 2, 10);
+    g.fillStyle(SHADE.BASE, 1);
+    g.fillRect(cx + 6, cy - 4, 3, 4);
+    g.fillStyle(SHADE.HIGHLIGHT, 1);
+    g.fillRect(cx + 6, cy - 4, 2, 2);
+    // Legs
+    const legOff = state === 'move' ? (frame === 0 ? 2 : -1) : 0;
+    g.fillStyle(SHADE.BASE, 1);
+    g.fillRect(cx - 3, cy + 5, 3, 3 + legOff);
+    g.fillRect(cx + 1, cy + 5, 3, 3 - legOff);
+    // Banner
+    g.fillStyle(0x44aa44, 1);
+    g.fillRect(cx - 5, cy - 7, 2, 4);
+  }
+
+  static _drawBlackKnightUnit(g, size, state, frame) {
+    const cx = size / 2, cy = size / 2;
+    g.fillStyle(SHADE.OUTLINE, 1);
+    g.fillRect(cx - 4, cy - 9, 8, 6);
+    g.fillRect(cx - 5, cy - 4, 10, 9);
+    // Dark helm
+    g.fillStyle(SHADE.DEEP, 1);
+    g.fillRect(cx - 3, cy - 8, 6, 5);
+    g.fillStyle(SHADE.SHADOW, 1);
+    g.fillRect(cx - 3, cy - 8, 3, 3);
+    // Visor (red glow)
+    g.fillStyle(0xff4444, 1);
+    g.fillRect(cx - 1, cy - 6, 3, 1);
+    // Cape (flowing behind)
+    g.fillStyle(SHADE.DEEP, 1);
+    g.fillRect(cx - 5, cy - 4, 2, 8 + (frame === 1 ? 1 : 0));
+    g.fillStyle(SHADE.SHADOW, 0.5);
+    g.fillRect(cx - 5, cy - 4, 1, 6);
+    // Body (heavy armor)
+    g.fillStyle(SHADE.SHADOW, 1);
+    g.fillRect(cx - 4, cy - 3, 8, 7);
+    g.fillStyle(SHADE.BASE, 0.5);
+    g.fillRect(cx - 4, cy - 3, 4, 4);
+    g.fillStyle(SHADE.DEEP, 1);
+    g.fillRect(cx + 1, cy + 1, 3, 3);
+    // Dark sword
+    g.fillStyle(SHADE.DEEP, 1);
+    g.fillRect(cx + 5, cy - 7, 2, 10);
+    g.fillStyle(SHADE.SHADOW, 1);
+    g.fillRect(cx + 5, cy - 7, 1, 8);
+    g.fillStyle(0xff4444, 0.5);
+    g.fillRect(cx + 5, cy - 7, 2, 1);
+    // Legs
+    const legOff = state === 'move' ? (frame === 0 ? 1 : -1) : 0;
+    g.fillStyle(SHADE.SHADOW, 1);
+    g.fillRect(cx - 3, cy + 4, 2, 4 + legOff);
+    g.fillRect(cx + 1, cy + 4, 2, 4 - legOff);
+    // Banner (dark red)
+    g.fillStyle(0xaa2222, 1);
+    g.fillRect(cx - 6, cy - 8, 2, 4);
+  }
+
+  // --- Villager sprite drawers ---
+
+  static _drawFarmerUnit(g, size, state, frame) {
+    const cx = size / 2, cy = size / 2;
+    g.fillStyle(SHADE.OUTLINE, 1);
+    g.fillRect(cx - 3, cy - 6, 6, 4);
+    g.fillRect(cx - 3, cy - 3, 6, 6);
+    // Head (straw hat)
+    g.fillStyle(SHADE.BASE, 1);
+    g.fillRect(cx - 2, cy - 5, 4, 3);
+    g.fillStyle(SHADE.HIGHLIGHT, 1);
+    g.fillRect(cx - 3, cy - 6, 6, 2);
+    // Body
+    g.fillStyle(SHADE.BASE, 1);
+    g.fillRect(cx - 2, cy - 2, 4, 4);
+    g.fillStyle(SHADE.HIGHLIGHT, 1);
+    g.fillRect(cx - 2, cy - 2, 2, 3);
+    // Legs
+    const legOff = state === 'move' ? (frame === 0 ? 1 : -1) : 0;
+    g.fillStyle(SHADE.BASE, 1);
+    g.fillRect(cx - 2, cy + 2, 2, 3 + legOff);
+    g.fillRect(cx + 1, cy + 2, 2, 3 - legOff);
+    // Hoe
+    g.fillStyle(SHADE.SHADOW, 1);
+    g.fillRect(cx + 3, cy - 4, 1, 6);
+    g.fillStyle(SHADE.BASE, 1);
+    g.fillRect(cx + 3, cy - 4, 3, 1);
+    // Banner
+    g.fillStyle(0x44aa44, 1);
+    g.fillRect(cx - 3, cy - 5, 1, 3);
+  }
+
+  static _drawBuilderUnit(g, size, state, frame) {
+    const cx = size / 2, cy = size / 2;
+    g.fillStyle(SHADE.OUTLINE, 1);
+    g.fillRect(cx - 3, cy - 6, 6, 4);
+    g.fillRect(cx - 3, cy - 3, 6, 6);
+    // Head
+    g.fillStyle(SHADE.BASE, 1);
+    g.fillRect(cx - 2, cy - 5, 4, 3);
+    g.fillStyle(SHADE.HIGHLIGHT, 1);
+    g.fillRect(cx - 2, cy - 5, 2, 2);
+    // Body (apron)
+    g.fillStyle(SHADE.BASE, 1);
+    g.fillRect(cx - 2, cy - 2, 4, 4);
+    g.fillStyle(SHADE.SHADOW, 1);
+    g.fillRect(cx - 1, cy - 1, 2, 3);
+    // Legs
+    const legOff = state === 'move' ? (frame === 0 ? 1 : -1) : 0;
+    g.fillStyle(SHADE.BASE, 1);
+    g.fillRect(cx - 2, cy + 2, 2, 3 + legOff);
+    g.fillRect(cx + 1, cy + 2, 2, 3 - legOff);
+    // Hammer
+    g.fillStyle(SHADE.SHADOW, 1);
+    g.fillRect(cx + 3, cy - 3, 1, 5);
+    g.fillStyle(SHADE.BASE, 1);
+    g.fillRect(cx + 3, cy - 3, 3, 2);
+    // Banner
+    g.fillStyle(0x44aa44, 1);
+    g.fillRect(cx - 3, cy - 5, 1, 3);
+  }
+
+  static _drawMinerUnit(g, size, state, frame) {
+    const cx = size / 2, cy = size / 2;
+    g.fillStyle(SHADE.OUTLINE, 1);
+    g.fillRect(cx - 3, cy - 6, 6, 4);
+    g.fillRect(cx - 3, cy - 3, 6, 6);
+    // Head (hard hat)
+    g.fillStyle(SHADE.BASE, 1);
+    g.fillRect(cx - 2, cy - 5, 4, 3);
+    g.fillStyle(SHADE.HIGHLIGHT, 1);
+    g.fillRect(cx - 3, cy - 6, 6, 1);
+    g.fillRect(cx - 2, cy - 5, 2, 1);
+    // Body
+    g.fillStyle(SHADE.BASE, 1);
+    g.fillRect(cx - 2, cy - 2, 4, 4);
+    g.fillStyle(SHADE.HIGHLIGHT, 1);
+    g.fillRect(cx - 2, cy - 2, 2, 3);
+    // Legs
+    const legOff = state === 'move' ? (frame === 0 ? 1 : -1) : 0;
+    g.fillStyle(SHADE.BASE, 1);
+    g.fillRect(cx - 2, cy + 2, 2, 3 + legOff);
+    g.fillRect(cx + 1, cy + 2, 2, 3 - legOff);
+    // Pickaxe
+    g.fillStyle(SHADE.SHADOW, 1);
+    g.fillRect(cx + 3, cy - 3, 1, 5);
+    g.fillStyle(SHADE.BASE, 1);
+    g.fillRect(cx + 2, cy - 3, 3, 1);
+    g.fillRect(cx + 4, cy - 2, 1, 2);
+    // Banner
+    g.fillStyle(0x44aa44, 1);
+    g.fillRect(cx - 3, cy - 5, 1, 3);
+  }
+
+  static _drawLumberjackUnit(g, size, state, frame) {
+    const cx = size / 2, cy = size / 2;
+    g.fillStyle(SHADE.OUTLINE, 1);
+    g.fillRect(cx - 3, cy - 6, 6, 4);
+    g.fillRect(cx - 3, cy - 3, 6, 6);
+    // Head
+    g.fillStyle(SHADE.BASE, 1);
+    g.fillRect(cx - 2, cy - 5, 4, 3);
+    g.fillStyle(SHADE.HIGHLIGHT, 1);
+    g.fillRect(cx - 2, cy - 5, 2, 2);
+    // Body
+    g.fillStyle(SHADE.BASE, 1);
+    g.fillRect(cx - 2, cy - 2, 4, 4);
+    g.fillStyle(SHADE.HIGHLIGHT, 1);
+    g.fillRect(cx - 2, cy - 2, 2, 3);
+    // Legs
+    const legOff = state === 'move' ? (frame === 0 ? 1 : -1) : 0;
+    g.fillStyle(SHADE.BASE, 1);
+    g.fillRect(cx - 2, cy + 2, 2, 3 + legOff);
+    g.fillRect(cx + 1, cy + 2, 2, 3 - legOff);
+    // Axe
+    g.fillStyle(SHADE.SHADOW, 1);
+    g.fillRect(cx + 3, cy - 3, 1, 6);
+    g.fillStyle(SHADE.BASE, 1);
+    g.fillRect(cx + 3, cy - 3, 3, 2);
+    g.fillStyle(SHADE.HIGHLIGHT, 1);
+    g.fillRect(cx + 3, cy - 3, 2, 1);
+    // Banner
+    g.fillStyle(0x44aa44, 1);
+    g.fillRect(cx - 3, cy - 5, 1, 3);
   }
 
   // ── Camp textures ─────────────────────────────────────────────────────────

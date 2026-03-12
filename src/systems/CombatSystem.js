@@ -41,15 +41,50 @@ export default class CombatSystem {
     }
     this.attackRequested = false;
 
-    // Check enemy attacks on player
+    // Check enemy attacks on player and soldiers
     const enemies = this.spawner.getActiveEnemies();
+    const soldiers = this.scene.unitManager ? this.scene.unitManager.getSoldiers() : [];
+
     for (const enemy of enemies) {
       if (enemy.canAttack()) {
-        const dist = distance(enemy.sprite.x, enemy.sprite.y,
+        // Find nearest target: player or soldier
+        const playerDist = distance(enemy.sprite.x, enemy.sprite.y,
                               this.player.sprite.x, this.player.sprite.y);
-        if (dist < enemy.config.attackRange * 1.5) {
+
+        let nearestSoldier = null;
+        let nearestSoldierDist = Infinity;
+        for (const soldier of soldiers) {
+          if (!soldier.active) continue;
+          const d = distance(enemy.sprite.x, enemy.sprite.y, soldier.sprite.x, soldier.sprite.y);
+          if (d < nearestSoldierDist) {
+            nearestSoldierDist = d;
+            nearestSoldier = soldier;
+          }
+        }
+
+        if (nearestSoldier && nearestSoldierDist < enemy.config.attackRange * 1.5 &&
+            nearestSoldierDist <= playerDist) {
+          // Attack soldier
+          enemy.performAttack();
+          nearestSoldier.takeDamage(enemy.config.damage);
+          if (this.scene.particleManager) {
+            this.scene.particleManager.emitBlood(nearestSoldier.sprite.x, nearestSoldier.sprite.y);
+          }
+        } else if (playerDist < enemy.config.attackRange * 1.5) {
           enemy.performAttack();
           this.damagePlayer(enemy);
+        }
+      }
+
+      // Also allow enemies to chase soldiers (aggro on nearest soldier)
+      if (enemy.state === 0 /* IDLE */) {
+        for (const soldier of soldiers) {
+          if (!soldier.active) continue;
+          const d = distance(enemy.sprite.x, enemy.sprite.y, soldier.sprite.x, soldier.sprite.y);
+          if (d < enemy.config.aggroRange) {
+            enemy.state = 1; // CHASE
+            break;
+          }
         }
       }
     }
